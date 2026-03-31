@@ -156,9 +156,13 @@ export function WalletSyncPage() {
               className="px-3 py-2 border border-gray-200 rounded-[10px] text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900/20"
             />
             {chain === 'BITCOIN' && (
-              <p className="text-gray-400" style={{ fontSize: 11 }}>
-                Accepte une adresse simple, un xpub/zpub ou un descripteur Proton Wallet (wpkh([…]xpub…/0/*)#…)
-              </p>
+              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                <span className="text-gray-400" style={{ fontSize: 11 }}>Formats acceptés :</span>
+                {['bc1q…', 'xpub…', 'zpub…', 'wpkh(…)'].map(f => (
+                  <span key={f} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono"
+                        style={{ fontSize: 10 }}>{f}</span>
+                ))}
+              </div>
             )}
           </div>
 

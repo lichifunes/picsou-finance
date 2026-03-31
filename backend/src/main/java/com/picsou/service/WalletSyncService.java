@@ -133,18 +133,20 @@ public class WalletSyncService {
             account = existing.get();
             account.setCurrentBalance(balanceEur);
             account.setLastSyncedAt(Instant.now());
+            account.setTicker(null); // balance is already in EUR — no ticker-based conversion needed
         } else {
             account = Account.builder()
                 .name(name)
                 .type(AccountType.CRYPTO)
-                .provider(ticker)
+                .provider(ticker)  // provider keeps the symbol for display (BTC, SOL…)
                 .currency("EUR")
                 .currentBalance(balanceEur)
                 .lastSyncedAt(Instant.now())
                 .externalAccountId(externalId)
                 .isManual(false)
                 .color("#f59e0b")
-                .ticker(ticker)
+                // no .ticker() — balance is already in EUR; setting ticker would cause
+                // PriceService.toEur() to multiply by the asset price a second time
                 .build();
         }
 
