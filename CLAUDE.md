@@ -1,34 +1,69 @@
-# CLAUDE.md
+# Project: Picsou
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Self-hosted personal finance dashboard -- bank sync, crypto, goals, net worth tracking.
 
-Each submodule has its own CLAUDE.md with detailed guidance: [`backend/CLAUDE.md`](backend/CLAUDE.md) and [`frontend/CLAUDE.md`](frontend/CLAUDE.md).
+## Stack
 
-## Full-stack startup
+- Backend: Java 21 / Spring Boot 3.4.9 / Maven
+- Frontend: React 19 / TypeScript 5.9 / Vite 7 / Tailwind v4
+- DB: PostgreSQL 16 / Flyway
+- Build: Maven (backend), bun (frontend)
+- Deployment: Docker Compose
+
+## Essential commands
 
 ```bash
-docker compose up --build   # Build and start all services (frontend :5173, backend :8080, PostgreSQL :5432)
-docker compose down
+# Backend
+cd backend
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev   # Run locally (needs PostgreSQL on :5432)
+./mvnw test                                              # Run all tests
+./mvnw test -Dtest=GoalServiceTest                       # Run a single test class
+./mvnw package -DskipTests                               # Build JAR
+
+# Frontend
+cd frontend
+bun run dev          # Dev server on :5173 -- proxies /api/* to http://localhost:8080
+bun run build        # tsc + vite build (fails on type errors)
+bun run preview      # Serve the production build locally
+bun run typecheck    # TypeScript type checking only
+npx vitest run       # Run all unit tests
 ```
 
-For local development without Docker, start the backend first (`./mvnw spring-boot:run -Dspring-boot.run.profiles=dev`), then the frontend (`npm run dev`) — Vite proxies `/api/*` to `:8080`.
+## Code conventions
 
-## Architecture
+- Naming: camelCase for methods/variables, PascalCase for classes
+- Packages: `com.picsou.{model,repository,service,controller,dto,port,adapter,finary,config,exception}`
+- DTOs are Java records, no MapStruct
+- No business logic in controllers
+- Tests: Mockito unit tests, `@DataJpaTest` with H2 for integration
 
-Picsou is a self-hosted personal finance dashboard. **Single-user** — no registration, credentials come from environment variables (`APP_USERNAME`, `APP_PASSWORD_HASH`).
+## Project architecture
 
-```
-React (Vite :5173) ←→ Spring Boot (:8080) ←→ PostgreSQL (:5432)
-                               ↓
-               Enable Banking API (bank sync via PSD2/OAuth)
-               CoinGecko API (crypto prices)
-               Yahoo Finance API (stock/ETF prices)
-```
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full architecture overview, data flows, and external dependencies.
 
-**Auth contract between frontend and backend:** JWT tokens travel as HttpOnly + SameSite=Strict cookies (never in JS-readable storage). The frontend Axios instance auto-refreshes on 401; the backend rotates the refresh token on every use.
+For module-specific details, see:
+- [`backend/CLAUDE.md`](backend/CLAUDE.md) -- package structure, ports & adapters, auth, configuration
+- [`frontend/CLAUDE.md`](frontend/CLAUDE.md) -- component hierarchy, API layer, demo mode, i18n
 
-**Contract between backend and external providers:** all integrations hide behind `BankConnectorPort` and `PriceProviderPort` — swapping a provider means adding an adapter, not touching services or controllers.
+## Technical documentation
 
-## Configuration
+Before coding, check the relevant docs in `docs/`.
 
-All secrets are environment variables. Copy `.env.example` to `.env` before first run. Required: `JWT_SECRET`, `APP_USERNAME`, `APP_PASSWORD_HASH` (bcrypt). Enable Banking variables are optional if bank sync is not needed.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) -- project macro view
+- [`docs/decisions/`](docs/decisions/) -- technical decisions (ADR). Check them BEFORE proposing an alternative that was already evaluated.
+- [`docs/features/`](docs/features/) -- technical notes per feature. Read the relevant note before touching an existing feature.
+- [`docs/conventions/`](docs/conventions/) -- project-specific patterns and conventions
+- [`docs/INDEX.md`](docs/INDEX.md) -- full documentation index
+
+## Development workflow
+
+1. **Before coding**: read [`docs/INDEX.md`](docs/INDEX.md), identify relevant docs, read them
+2. **During**: follow conventions from [`docs/conventions/`](docs/conventions/)
+3. **After each significant feature/fix**: create or update the technical note in [`docs/features/`](docs/features/) following the [`docs/templates/FEATURE.md`](docs/templates/FEATURE.md) template
+4. **Architectural decision**: before deciding, check [`docs/decisions/`](docs/decisions/) for existing decisions. If new, create an ADR using the [`docs/templates/DECISION.md`](docs/templates/DECISION.md) template
+
+## Git
+
+- Branches: `feature/xxx`, `fix/xxx`, `refactor/xxx`
+- Conventional commits: `feat(scope):`, `fix(scope):`, `refactor(scope):`, `docs:`, `test:`
+- Always commit `docs/` updates alongside the related code
