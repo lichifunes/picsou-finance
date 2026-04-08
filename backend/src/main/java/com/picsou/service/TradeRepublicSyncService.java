@@ -1,6 +1,7 @@
 package com.picsou.service;
 
 import com.picsou.adapter.OpenFigiIsinConverter;
+import com.picsou.config.CryptoEncryption;
 import com.picsou.dto.AccountResponse;
 import com.picsou.exception.SyncException;
 import com.picsou.model.Account;
@@ -45,6 +46,7 @@ public class TradeRepublicSyncService {
     private final AccountHoldingRepository      holdingRepository;
     private final AccountService                accountService;
     private final OpenFigiIsinConverter         isinConverter;
+    private final CryptoEncryption              encryption;
 
     public TradeRepublicSyncService(
         TradeRepublicPort trPort,
@@ -52,7 +54,8 @@ public class TradeRepublicSyncService {
         AccountRepository accountRepository,
         AccountHoldingRepository holdingRepository,
         AccountService accountService,
-        OpenFigiIsinConverter isinConverter
+        OpenFigiIsinConverter isinConverter,
+        CryptoEncryption encryption
     ) {
         this.trPort            = trPort;
         this.sessionRepository = sessionRepository;
@@ -60,6 +63,7 @@ public class TradeRepublicSyncService {
         this.holdingRepository = holdingRepository;
         this.accountService    = accountService;
         this.isinConverter     = isinConverter;
+        this.encryption        = encryption;
     }
 
     // ─── Auth ─────────────────────────────────────────────────────────────────
@@ -80,8 +84,8 @@ public class TradeRepublicSyncService {
 
         sessionRepository.deleteAll();
         TradeRepublicSession session = TradeRepublicSession.builder()
-            .sessionToken(tokens.sessionToken())
-            .refreshToken(tokens.refreshToken())
+            .sessionToken(encryption.encrypt(tokens.sessionToken()))
+            .refreshToken(encryption.encrypt(tokens.refreshToken()))
             .expiresAt(Instant.now().plus(2, ChronoUnit.HOURS)) // refresh token validity
             .build();
         sessionRepository.save(session);
@@ -97,7 +101,7 @@ public class TradeRepublicSyncService {
     public List<AccountResponse> sync() {
         TradeRepublicSession stored = sessionRepository.findTopByOrderByCreatedAtDesc()
             .orElseThrow(() -> new SyncException("Aucune session Trade Republic. Veuillez vous connecter."));
-        return syncWithToken(stored.getSessionToken(), stored);
+        return syncWithToken(encryption.decrypt(stored.getSessionToken()), stored);
     }
 
     private List<AccountResponse> syncWithToken(String sessionToken, TradeRepublicSession stored) {
@@ -126,10 +130,10 @@ public class TradeRepublicSyncService {
 
     private List<AccountResponse> refreshAndRetry(TradeRepublicSession stored) {
         try {
-            TrTokens newTokens = trPort.refreshSession(stored.getRefreshToken());
-            stored.setSessionToken(newTokens.sessionToken());
+            TrTokens newTokens = trPort.refreshSession(encryption.decrypt(stored.getRefreshToken()));
+            stored.setSessionToken(encryption.encrypt(newTokens.sessionToken()));
             if (newTokens.refreshToken() != null) {
-                stored.setRefreshToken(newTokens.refreshToken());
+                stored.setRefreshToken(encryption.encrypt(newTokens.refreshToken()));
             }
             stored.setExpiresAt(Instant.now().plus(2, ChronoUnit.HOURS));
             sessionRepository.save(stored);
@@ -206,7 +210,7 @@ public class TradeRepublicSyncService {
                     .replaceAll("[^a-z0-9]", "_")
                     .replaceAll("_+", "_");
 
-                responses.add(upsertAccount(new TrAccountData(externalId, name, type, balance)));
+                responses.add(upsertAccount(new TrAccountData(externalId, name, type, balance, List.of())));
             }
 
         } catch (Exception ex) {
@@ -249,7 +253,7 @@ public class TradeRepublicSyncService {
         }
 
         try {
-            syncWithToken(s.getSessionToken(), s);
+            syncWithToken(encryption.decrypt(s.getSessionToken()), s);
         } catch (Exception ex) {
             log.warn("Trade Republic auto-sync failed: {}", ex.getMessage());
         }

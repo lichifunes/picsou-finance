@@ -64,13 +64,13 @@ public class CryptoExchangeSyncService {
         CryptoExchangeSession session;
         if (existing.isPresent()) {
             session = existing.get();
-            session.setApiKey(apiKey);
+            session.setApiKey(encryption.encrypt(apiKey));
             session.setApiSecret(encryption.encrypt(apiSecret));
             session.setStatus("CONNECTED");
         } else {
             session = CryptoExchangeSession.builder()
                 .exchangeType(type)
-                .apiKey(apiKey)
+                .apiKey(encryption.encrypt(apiKey))
                 .apiSecret(encryption.encrypt(apiSecret))
                 .status("CONNECTED")
                 .build();
@@ -85,10 +85,11 @@ public class CryptoExchangeSyncService {
             .orElseThrow(() -> new ResourceNotFoundException("Exchange session not found: " + sessionId));
 
         CryptoExchangePort adapter = findAdapter(session.getExchangeType());
+        String decryptedKey = encryption.decrypt(session.getApiKey());
         String decryptedSecret = encryption.decrypt(session.getApiSecret());
 
         try {
-            List<CryptoHolding> holdings = adapter.fetchHoldings(session.getApiKey(), decryptedSecret);
+            List<CryptoHolding> holdings = adapter.fetchHoldings(decryptedKey, decryptedSecret);
 
             Set<String> tickers = holdings.stream()
                 .map(CryptoHolding::symbol)

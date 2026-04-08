@@ -1,73 +1,70 @@
 # Feature: Dashboard Time Range Isolation
 
-> Last updated: 2026-04-05
+> Last updated: 2026-04-08
 
 ## Context
 
-The Dashboard displays net worth history, account distribution, and goals. When a user clicks time range buttons (1D, 7D, 1M, etc.), only the net worth chart should update with the new date range. The distribution pie and goals sections are static data that should never re-render when the user changes the time range. This requires isolating the time range state to prevent unnecessary re-fetches and re-renders across the entire page.
+The Dashboard displays net worth history, account distribution, and goals. When a user clicks time range buttons (1D, 7D, 1M, etc.), only the net worth chart should update. Distribution and goals are unaffected. The time range state lives inside `NetWorthChart` so changing it never triggers a page-level re-render or re-fetch.
 
 ## How it works
 
-The Dashboard page is split into two data fetch scenarios:
-
-1. **Static data** (distribution + goals): Fetched once via `useDashboard()` without a range parameter. Never re-fetches.
-2. **Time-range-scoped data** (net worth history): Managed by the `NetWorthCard` component with local `range` state. Re-fetches only when the user clicks a time range button.
+The dashboard fetches all data once via `useDashboard()` (no range parameter). The backend always returns 12 months of net worth history. `NetWorthChart` filters this data client-side based on the selected range.
 
 ### Key files
 
-- `frontend/src/pages/dashboard/DashboardPage.tsx` — Page layout, renders distribution pie, goals, and NetWorthCard
-- `frontend/src/features/dashboard/NetWorthCard.tsx` — Isolated component managing net worth chart with local range state
-- `frontend/src/features/dashboard/hooks.ts` — `useDashboard(range?)` hook (supports optional range parameter)
+- `frontend/src/pages/dashboard/DashboardPage.tsx` — Page layout, single `useDashboard()` call, passes full `netWorthHistory` to chart
+- `frontend/src/components/shared/NetWorthChart.tsx` — Chart with internal `range` state, `TimeRangeSelector`, and `filterByRange()` client-side filter
 - `frontend/src/components/shared/TimeRangeSelector.tsx` — Time range button controls (1D, 7D, 1M, 3M, YTD, 1Y, ALL)
-- `frontend/src/components/shared/NetWorthChart.tsx` — Displays net worth vs. invested line chart using recharts
+- `backend/src/main/java/com/picsou/service/DashboardService.java` — `buildNetWorthHistory()` always fetches last 12 months
 
 ### Flow
 
 ```
-User clicks "7D" button
+DashboardPage mounts
   ↓
-TimeRangeSelector.onChange fires
+useDashboard() fetches /api/dashboard (no range param)
   ↓
-NetWorthCard.setRange('7D') updates local state
+Backend returns 12 months of history + distribution + goals
   ↓
-useDashboard('7D') called with new range
+DashboardPage passes data.netWorthHistory to NetWorthChart
   ↓
-React Query fetches /dashboard?range=7D
+User clicks "3M" button inside the chart
   ↓
-NetWorthChart re-renders with new data
+NetWorthChart.setRange('3M') — local state only
   ↓
-DashboardPage, distribution pie, goals: unaffected (never re-render)
+filterByRange() filters history to last 90 days (useMemo)
+  ↓
+Chart re-renders with filtered data
+  ↓
+Rest of page (hero, distribution, goals): completely unaffected
 ```
 
 ## Technical choices
 
 | Choice | Why | Rejected alternative |
 |--------|-----|----------------------|
-| Move time range state to **NetWorthCard component** (local `useState`) | Scope isolation — only the net worth section re-fetches when range changes. Distribution and goals remain static. | Global state (Zustand/Redux) — would cause the entire dashboard to re-render unnecessarily. |
-| Use **separate hook calls** in DashboardPage and NetWorthCard | DashboardPage calls `useDashboard()` (no range) for static data. NetWorthCard calls `useDashboard(range)` for scoped data. | Single monolithic query — would require the entire dashboard to re-fetch whenever range changed. |
-| Default range to **'1Y'** in NetWorthCard | Matches user expectation ("sur 12 mois" trend label). Consistent with historical behavior. | No default / 'ALL' — would be confusing. |
+| Client-side filtering in `NetWorthChart` | Single API call, instant range switching, no extra backend work | Separate API call per range — backend ignores the `range` param anyway, would duplicate requests |
+| `range` state inside `NetWorthChart` (local `useState`) | Scope isolation — only the chart re-renders on range change | State in `DashboardPage` — caused full page re-render on every range change |
+| Default range `'1Y'` | Matches the 12 months of data the backend returns. Consistent with user expectations. | `'ALL'` — identical to 1Y given backend data window |
+| Responsive `TimeRangeSelector` buttons | Smaller padding/font on mobile (`px-1.5 text-[11px]`), larger on `sm:` breakpoint. `flex-wrap` for overflow. | Fixed size — overflows on small screens |
 
 ## Gotchas / Pitfalls
 
-- **Query key isolation**: The `useDashboard()` hook uses `['dashboard', range]` as the React Query key. When DashboardPage calls without range (undefined), it caches separately from NetWorthCard's range-scoped calls. Do not remove the range from the query key.
+- **Backend always returns 12 months**: `DashboardService.buildNetWorthHistory()` hardcodes `LocalDate.now().minusMonths(12)`. Ranges like `'ALL'` will only show 12 months unless the backend is updated.
 
-- **Data shape difference**: DashboardPage expects `distribution` and `goalSummaries` fields. NetWorthCard expects `totalNetWorth`, `previousTotal`, and `netWorthHistory` with `invested` field. The backend must return all these fields in `/dashboard?range=X` responses.
+- **`filterByRange()` uses `new Date()` at filter time**: The cutoff date is computed on each range change relative to "now". If the page stays open across midnight, the filtered window shifts accordingly.
 
-- **NetWorthChart requires `invested` field**: Each entry in `netWorthHistory` must have both `total` and `invested` properties. If the range-scoped API response omits `invested`, the chart will fail to render. Check backend implementation in `DashboardController.java`.
-
-- **No loading state sync**: DashboardPage may finish loading before NetWorthCard (or vice versa). They have separate loading states. The overall page is not "fully loaded" until both queries finish. This is intentional but may look janky on slow connections.
+- **`NetWorthChart` is used elsewhere**: It's a shared component in `components/shared/`. The `TimeRangeSelector` is now always rendered inside it. If another page uses `NetWorthChart`, it will also show the range selector.
 
 ## Tests
 
-No dedicated test files exist yet. Manual verification:
+No dedicated test files. Manual verification:
 
 1. Open Dashboard
-2. Click "1D" button → net worth chart updates, distribution/goals stay static
-3. Click "1Y" button → chart updates again, rest of page unchanged
-4. Refresh page → chart should default to 1Y range
-5. Verify no console errors about missing `invested` field in chart data
+2. Click range buttons in the chart → only chart data changes, hero/distribution/goals stay static
+3. Verify range buttons are usable on mobile viewport (no overflow)
+4. Refresh page → chart defaults to 1Y
 
 ## Links
 
-- **Backend**: `backend/src/main/java/com/picsou/controller/DashboardController.java` — `/dashboard` endpoint (must support `?range=` parameter)
-- **Related decision**: [TODO] Consider creating ADR if more complex time range logic is added later (e.g., comparing two ranges, exporting range-scoped data)
+- Related ADR: [Component-local state for UI filters](../decisions/2026-04-05-component-local-state-for-ui-filters.md)

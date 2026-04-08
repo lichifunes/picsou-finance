@@ -1,10 +1,15 @@
 import axios from 'axios'
+import { createDemoAdapter } from '@/demo'
 
 export const api = axios.create({
   baseURL: '/api',
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })
+
+if (import.meta.env.VITE_DEMO_MODE === 'true') {
+  api.defaults.adapter = createDemoAdapter()
+}
 
 let isRefreshing = false
 let refreshSubscribers: Array<() => void> = []

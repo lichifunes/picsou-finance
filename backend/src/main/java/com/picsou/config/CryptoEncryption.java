@@ -24,19 +24,16 @@ public class CryptoEncryption {
     private final SecureRandom random = new SecureRandom();
 
     public CryptoEncryption(@Value("${app.crypto.encryption-key:}") String base64Key) {
-        if (base64Key != null && !base64Key.isBlank()) {
-            this.key = new SecretKeySpec(Base64.getDecoder().decode(base64Key), "AES");
-        } else {
-            this.key = null;
-            log.warn("CRYPTO_ENCRYPTION_KEY not set — API secrets will be stored in plain text");
+        if (base64Key == null || base64Key.isBlank()) {
+            throw new IllegalStateException(
+                "CRYPTO_ENCRYPTION_KEY is required. Generate one with: " +
+                "openssl rand -base64 32");
         }
+        this.key = new SecretKeySpec(Base64.getDecoder().decode(base64Key), "AES");
     }
 
     public String encrypt(String plainText) {
         if (plainText == null) return null;
-        if (key == null) throw new IllegalStateException(
-                "CRYPTO_ENCRYPTION_KEY is not set — cannot store exchange credentials. " +
-                "Set app.crypto.encryption-key in your environment.");
 
         try {
             byte[] iv = new byte[GCM_IV_LENGTH];
@@ -54,7 +51,7 @@ public class CryptoEncryption {
     }
 
     public String decrypt(String cipherText) {
-        if (cipherText == null || key == null) return cipherText;
+        if (cipherText == null) return null;
         try {
             byte[] combined = Base64.getDecoder().decode(cipherText);
             byte[] iv = new byte[GCM_IV_LENGTH];

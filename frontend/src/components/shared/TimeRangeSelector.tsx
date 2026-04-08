@@ -14,13 +14,13 @@ export function TimeRangeSelector({ value, onChange }: TimeRangeSelectorProps) {
   const { t } = useTranslation()
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1">
       {RANGES.map(range => (
         <button
           key={range}
           onClick={() => onChange(range)}
           className={cn(
-            'inline-flex items-center justify-center rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+            'inline-flex items-center justify-center rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors sm:px-2.5 sm:text-xs',
             value === range
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'

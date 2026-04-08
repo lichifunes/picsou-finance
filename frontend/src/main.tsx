@@ -4,7 +4,10 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { Providers } from './app/providers'
 import { router } from './app/routes'
+import { initSystemThemeListener } from './lib/theme'
 import './index.css'
+
+initSystemThemeListener()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('Root element not found')

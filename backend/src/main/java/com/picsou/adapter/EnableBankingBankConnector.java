@@ -96,7 +96,7 @@ public class EnableBankingBankConnector implements BankConnectorPort {
             throw new SyncException("Empty response from Enable Banking /auth");
         }
 
-        log.info("Enable Banking auth initiated, authorization_id={}", auth.authorizationId());
+        log.info("Enable Banking auth initiated");
         return new InitiateResult(auth.authorizationId(), auth.url());
     }
 

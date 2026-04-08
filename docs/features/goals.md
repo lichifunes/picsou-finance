@@ -1,6 +1,6 @@
 # Feature: Goals
 
-> Last updated: 2026-04-04
+> Last updated: 2026-04-08
 
 ## Context
 
@@ -50,6 +50,8 @@ Two separate override mechanisms:
 - `repository/GoalRepository.java` -- `findAllWithAccounts()` for eager fetching
 - `repository/GoalMonthOverrideRepository.java` -- Override lookup by goal + month
 - `repository/GoalManualContributionRepository.java` -- Contribution lookup by goal + month
+- `pages/goals/GoalsPage.tsx` -- Goal list with cards, CRUD dialog, status badges, account chips
+- `pages/goals/GoalCalendarPage.tsx` -- Monthly calendar view with donut rings, overrides, manual contributions
 
 ### Flow
 
@@ -95,6 +97,8 @@ GoalService.setMonthOverride(goalId, yearMonth, amount)
 | Separate override + manual contribution | Different semantics: override changes the target, manual contribution changes the actual | Single override field (loses information) |
 | 3-month average for `avgMonthlyContribution` | Short enough to reflect recent behavior, long enough to smooth out noise | 6-month or 12-month average (too slow to reflect changes) |
 | `null` for no history | Distinguishes "no data yet" from "zero contribution"; `isOnTrack` treats null as "benefit of the doubt" | Return zero (would mark new goals as "not on track") |
+| `<Badge variant="secondary">` for account chips | Uses theme semantic tokens (luma preset); consistent with rest of the UI | Per-account pastel `<span>` with `style={{ background: a.color }}` |
+| `<Badge variant="default">` for achieved/on track status | Solid primary color; visible and unambiguous | Pastel `bg-green-500/10` (barely visible, not theme-aware) |
 
 ## Gotchas / Pitfalls
 
@@ -107,6 +111,13 @@ GoalService.setMonthOverride(goalId, yearMonth, amount)
 ## Tests
 
 - `GoalServiceTest` -- unit tests for progress calculation, monthly entries, overrides, edge cases (deadline passed, no history)
+
+## Frontend notes
+
+- **Account chips** use `<Badge variant="secondary">` — theme-aware, no per-account color. The `ACCOUNT_COLORS` palette is still used elsewhere (ColorPicker, DistributionPie, AccountCard, FinaryTab) but not in goal cards.
+- **Status badges**: achieved/on track use `variant="default"` (primary), behind uses `variant="destructive"`, waiting uses `variant="secondary"`.
+- **Calendar badges**: "manu." uses `variant="secondary"`, "modif." uses `variant="outline"` — no raw Tailwind color overrides.
+- **Icons**: `TrendingUp`/`TrendingDown` come from `lucide-react` (not HugeIcons) in the goals pages.
 
 ## Links
 

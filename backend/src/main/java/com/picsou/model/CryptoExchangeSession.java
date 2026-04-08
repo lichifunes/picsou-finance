@@ -22,7 +22,7 @@ public class CryptoExchangeSession extends AuditableEntity {
     @Column(name = "exchange_type", nullable = false, length = 20)
     private ExchangeType exchangeType;
 
-    @Column(name = "api_key", nullable = false, length = 200)
+    @Column(name = "api_key", nullable = false, length = 500)
     private String apiKey;
 
     @Column(name = "api_secret", nullable = false, length = 500)

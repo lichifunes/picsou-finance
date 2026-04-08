@@ -338,8 +338,23 @@ public class TradeRepublicAdapter implements TradeRepublicPort {
                  positionsByIsin.size(), priced, totalPortfolioValue);
 
         if (totalPortfolioValue.compareTo(BigDecimal.ZERO) > 0) {
+            // Build list of TrPosition objects from positionsByIsin
+            List<TradeRepublicPort.TrPosition> positions = new ArrayList<>();
+            for (var entry : positionsByIsin.entrySet()) {
+                String isin = entry.getKey();
+                JsonNode pos = entry.getValue();
+                BigDecimal size = new BigDecimal(pos.path("netSize").asText("0"));
+
+                if (size.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+                BigDecimal averageBuyIn = new BigDecimal(pos.path("averageBuyIn").asText("0"));
+                BigDecimal currentPrice = tickerPrices.getOrDefault(isin, averageBuyIn);
+
+                positions.add(new TradeRepublicPort.TrPosition(isin, size, averageBuyIn, currentPrice));
+            }
+
             accounts.add(new TrAccountData(
-                    "tr_securities", "TR Titres", AccountType.COMPTE_TITRES, totalPortfolioValue));
+                    "tr_securities", "TR Titres", AccountType.COMPTE_TITRES, totalPortfolioValue, positions));
         }
 
         if (cashJson.get() != null
@@ -457,14 +472,14 @@ public class TradeRepublicAdapter implements TradeRepublicPort {
                 for (JsonNode item : array) {
                     BigDecimal value = extractValue(item);
                     if (value.compareTo(BigDecimal.ZERO) >= 0) {
-                        accounts.add(new TrAccountData("tr_cash", "TR Cash", AccountType.CHECKING, value));
+                        accounts.add(new TrAccountData("tr_cash", "TR Cash", AccountType.CHECKING, value, List.of()));
                         break;
                     }
                 }
             } else if (array.isObject()) {
                 BigDecimal value = extractValue(array);
                 if (value.compareTo(BigDecimal.ZERO) >= 0) {
-                    accounts.add(new TrAccountData("tr_cash", "TR Cash", AccountType.CHECKING, value));
+                    accounts.add(new TrAccountData("tr_cash", "TR Cash", AccountType.CHECKING, value, List.of()));
                 }
             }
         } catch (Exception ex) {

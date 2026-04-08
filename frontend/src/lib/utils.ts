@@ -1,80 +1,42 @@
-import { clsx } from 'clsx'
-import type { ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
 
-export function cn(...inputs: ClassValue[]): string {
+export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(value: number, currency: string = 'EUR', locale: string = 'fr-FR'): string {
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
+export function formatCurrency(value: number, currency = 'EUR', locale = 'fr-FR'): string {
+  return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(value)
 }
 
-export function formatPercent(value: number, decimals = 2): string {
-  return (value * 100).toFixed(decimals) + '%'
+export function formatDate(dateStr: string | null | undefined, locale = 'fr-FR'): string {
+  if (!dateStr) return '—'
+  return new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(dateStr))
 }
 
-export function formatTimeAgo(dateStr: string, locale: string = 'fr-FR'): string {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
-  if (seconds < 60) return locale.startsWith('fr') ? "à l'instant" : 'just now'
-  if (seconds < 3600) {
-    const m = Math.floor(seconds / 60)
-    return locale.startsWith('fr') ? `il y a ${m}m` : `${m}m ago`
-  }
-  const h = Math.floor(seconds / 3600)
-  return locale.startsWith('fr') ? `il y a ${h}h` : `${h}h ago`
+export function formatPercent(value: number, locale = 'fr-FR'): string {
+  return new Intl.NumberFormat(locale, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)
 }
 
-/** Format a number as EUR currency */
-export function formatEur(value: number, opts?: { compact?: boolean }): string {
-  if (opts?.compact && Math.abs(value) >= 1000) {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(value)
-  }
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
+export function todayLabel(locale = 'fr-FR'): string {
+  return new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())
 }
 
-/** Format a date string as "12 mars 2026" */
-export function formatDate(dateStr: string, locale: string = 'fr-FR'): string {
-  return new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(dateStr))
+export function formatLocalDate(dateStr: string | null | undefined, locale = 'fr-FR'): string {
+  if (!dateStr) return '—'
+  return new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(dateStr))
 }
 
-/** Today as "Lundi 24 mars 2026" */
-export function todayLabel(): string {
-  return new Intl.DateTimeFormat('fr-FR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date()).replace(/^./, c => c.toUpperCase())
-}
-
-/** Format a LocalDate ("2026-03-24") as "24 mars 2026" */
-export function formatLocalDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(y, m - 1, d))
+export function formatTimeAgo(dateStr: string | null | undefined, locale = 'fr-FR'): string {
+  if (!dateStr) return '—'
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const minutes = Math.floor(diff / 60_000)
+  if (minutes < 1) return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(0, 'minute')
+  if (minutes < 60) return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(-minutes, 'minute')
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(-hours, 'hour')
+  const days = Math.floor(hours / 24)
+  return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(-days, 'day')
 }
 
 export function accountTypeLabel(type: string): string {
@@ -90,17 +52,7 @@ export function accountTypeLabel(type: string): string {
   return labels[type] ?? type
 }
 
-export function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max)
-}
-
-/**
- * Validates that a redirect URL is safe (relative, same-origin).
- * Returns '/' for any absolute URL or protocol-relative URL to prevent open redirects.
- */
-export function safeRedirect(url: string | null | undefined): string {
-  if (!url) return '/'
-  // Must start with exactly one slash (not // which is protocol-relative)
-  if (/^\/(?!\/)/.test(url)) return url
-  return '/'
+export function safeRedirect(redirect: string | null, fallback = '/'): string {
+  if (!redirect || !redirect.startsWith('/')) return fallback
+  return redirect
 }

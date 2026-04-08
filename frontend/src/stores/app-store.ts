@@ -16,6 +16,6 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setDemoMode: (enabled) => set({ demoMode: enabled }),
     }),
-    { name: 'picsou-app' }
+    { name: 'picsou-app', partialize: (s) => ({ sidebarCollapsed: s.sidebarCollapsed }) }
   )
 )

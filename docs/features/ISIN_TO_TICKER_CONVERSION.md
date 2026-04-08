@@ -1,6 +1,6 @@
 # Feature: ISIN to Yahoo Finance Ticker Conversion
 
-> Last updated: 2026-04-04
+> Last updated: 2026-04-05
 
 ## Context
 
@@ -46,6 +46,7 @@ YahooFinancePriceProvider.getPricesEur() → Yahoo API ✅
 - **ISIN codes are 12-character strings** (`[A-Z]{2}[A-Z0-9]{9}[A-Z0-9]`). The regex in `supports()` line 56-57 detects them — don't change this logic without testing multiple ISINs.
 - **OpenFIGI returns multiple results** — we prefer tickers with market suffixes (`.AS`, `.PA`, `.DE`) because Yahoo requires them. A ticker without suffix (plain `IWDA`) might exist but won't work in Yahoo.
 - **Caching is in-memory only** — cache is lost on app restart. This is fine because: (a) holdings rarely change during a session, (b) most syncs happen via scheduled job (daily), (c) OpenFIGI queries are fast anyway. See "Future Improvements" for persistent caching.
+- **Failed conversions are cached as empty strings, not null** — `ConcurrentHashMap` rejects null values. When OpenFIGI fails to convert an ISIN, the converter stores an empty string (`""`) as a sentinel value. This prevents repeated API calls for the same failed ISIN and avoids `NullPointerException` on cache.put(). Always check `isEmpty()` before dereferencing cached values.
 - **If conversion fails, system doesn't crash** — it returns the original ISIN, then `YahooFinancePriceProvider.supports()` rejects it, and price remains null. This is intentional and safe.
 
 ## Tests

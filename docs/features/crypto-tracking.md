@@ -1,6 +1,6 @@
 # Feature: Crypto Tracking
 
-> Last updated: 2026-04-04
+> Last updated: 2026-04-08
 
 ## Context
 
@@ -10,7 +10,7 @@ Picsou tracks cryptocurrency holdings from two sources: centralized exchanges (B
 
 ### Three subsystems
 
-1. **CryptoExchangeSyncService** -- Manages exchange connections. Stores API key + encrypted secret in `CryptoExchangeSession`. Fetches holdings, converts to EUR via `PriceService.refreshPrices()`, and upserts a single account per exchange with per-coin holdings in `AccountHolding`.
+1. **CryptoExchangeSyncService** -- Manages exchange connections. Stores encrypted API key + encrypted secret in `CryptoExchangeSession`. Both fields are encrypted with AES-256-GCM. Fetches holdings, converts to EUR via `PriceService.refreshPrices()`, and upserts a single account per exchange with per-coin holdings in `AccountHolding`.
 
 2. **WalletSyncService** -- Manages on-chain wallet addresses. Stores chain type + address in `WalletAddress`. Fetches native balance via `WalletPort`, converts to EUR, and upserts an account. Does NOT store a ticker on the account to prevent double price conversion (balance is already in EUR).
 
@@ -18,7 +18,7 @@ Picsou tracks cryptocurrency holdings from two sources: centralized exchanges (B
 
 ### AES-256-GCM encryption
 
-`CryptoEncryption` handles encryption/decryption of API secrets stored in the database. It uses `AES/GCM/NoPadding` with a 12-byte IV and 128-bit tag. The IV is prepended to the ciphertext before Base64 encoding. The encryption key is provided via the `CRYPTO_ENCRYPTION_KEY` environment variable (Base64-encoded 256-bit key). If the key is not set, `encrypt()` throws `IllegalStateException` -- secrets are never stored in plaintext.
+`CryptoEncryption` handles encryption/decryption of API keys and secrets stored in the database. Both `apiKey` and `apiSecret` are encrypted. It uses `AES/GCM/NoPadding` with a 12-byte IV and 128-bit tag. The IV is prepended to the ciphertext before Base64 encoding. The encryption key is provided via the `CRYPTO_ENCRYPTION_KEY` environment variable (Base64-encoded 256-bit key). The app **refuses to start** if the key is not set. See [encryption-at-rest.md](./encryption-at-rest.md) for full details.
 
 ### Binance adapter
 
@@ -68,10 +68,10 @@ CryptoExchangeSyncService.addExchange()
 BinanceAdapter.testConnection() -- validate credentials
         |
         v
-CryptoEncryption.encrypt(secret) -- AES-256-GCM
+CryptoEncryption.encrypt(key + secret) -- AES-256-GCM
         |
         v
-Save CryptoExchangeSession (apiKey + encryptedSecret)
+Save CryptoExchangeSession (encryptedKey + encryptedSecret)
         |
         v
 BinanceAdapter.fetchHoldings() -- get balances
@@ -110,7 +110,7 @@ Upsert Account (type=CRYPTO, no ticker)
 
 ## Gotchas / Pitfalls
 
-- **CRYPTO_ENCRYPTION_KEY required**: If not set, `encrypt()` throws immediately. The app will not store exchange credentials without encryption. Lost key = cannot decrypt existing secrets = must re-auth all exchanges.
+- **CRYPTO_ENCRYPTION_KEY required**: The app refuses to start without it. Lost key = cannot decrypt existing secrets = must re-enter exchange credentials.
 - **No ticker on wallet accounts**: Wallet accounts have `ticker = null` and `provider = "BTC"/"ETH"/"SOL"`. The balance is already in EUR. Do not set a ticker on wallet accounts -- it will cause double price conversion.
 - **Bitcoin xpub vs zpub**: Both are supported. `BitcoinKeyUtils.normalizeToXpub()` converts zpub to xpub before derivation. The derivation always produces P2WPKH (native segwit) addresses.
 - **Output descriptor parsing**: Descriptors are parsed by extracting the xpub between brackets. The checksum after `#` is ignored. Complex descriptors (multisig, P2SH-wrapped) are not supported.
@@ -127,4 +127,5 @@ Upsert Account (type=CRYPTO, no ticker)
 
 - Related ADR: [AES-256-GCM for crypto secrets](../decisions/2026-03-01-aes-gcm-crypto-secrets.md)
 - Related ADR: [Ports and adapters](../decisions/2026-01-01-ports-and-adapters.md)
+- Related feature: [Encryption at rest](./encryption-at-rest.md)
 - Related feature: [Price service](./price-service.md)

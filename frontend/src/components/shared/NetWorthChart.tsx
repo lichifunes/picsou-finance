@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Area, AreaChart, CartesianGrid, Legend, Line, XAxis, YAxis } from 'recharts'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
+import { TimeRangeSelector, type TimeRange } from '@/components/shared/TimeRangeSelector'
 import { formatDate, formatCurrency } from '@/lib/utils'
 
 interface NetWorthChartProps {
@@ -62,9 +63,27 @@ function NetWorthTooltip({ active, payload, labels }: {
   )
 }
 
+function filterByRange(data: NetWorthChartProps['data'], range: TimeRange) {
+  if (range === 'ALL') return data
+  const now = new Date()
+  let from: Date
+  switch (range) {
+    case '1D': from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1); break
+    case '7D': from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7); break
+    case '1M': from = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()); break
+    case '3M': from = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()); break
+    case 'YTD': from = new Date(now.getFullYear(), 0, 1); break
+    case '1Y': from = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()); break
+  }
+  return data.filter(p => new Date(p.date) >= from)
+}
+
 export function NetWorthChart({ data }: NetWorthChartProps) {
   const { t } = useTranslation()
   const locale = t('common.locale')
+  const [range, setRange] = useState<TimeRange>('1Y')
+
+  const filteredData = useMemo(() => filterByRange(data, range), [data, range])
 
   const chartConfig = useMemo(() => ({
     total: {
@@ -86,8 +105,12 @@ export function NetWorthChart({ data }: NetWorthChartProps) {
   }), [t])
 
   return (
-    <ChartContainer config={chartConfig} className="h-[250px] w-full [&>div>div]:!w-full [&>div>div>svg]:!w-full">
-      <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+    <div>
+      <div className="flex justify-end mb-3">
+        <TimeRangeSelector value={range} onChange={setRange} />
+      </div>
+      <ChartContainer config={chartConfig} className="h-[250px] w-full [&>div>div]:!w-full [&>div>div>svg]:!w-full">
+        <AreaChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="fillTotal" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="var(--color-total)" stopOpacity={0.3} />
@@ -146,5 +169,6 @@ export function NetWorthChart({ data }: NetWorthChartProps) {
         )} />
       </AreaChart>
     </ChartContainer>
+    </div>
   )
 }

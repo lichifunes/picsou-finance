@@ -1,0 +1,301 @@
+package com.picsou.finary;
+
+import com.picsou.config.FinaryProperties;
+import com.picsou.dto.*;
+import com.picsou.exception.SyncException;
+import com.picsou.finary.client.FinaryApiClient;
+import com.picsou.finary.dto.FinaryAccountDto;
+import com.picsou.finary.dto.FinaryTransactionDto;
+import com.picsou.model.Account;
+import com.picsou.model.AccountType;
+import com.picsou.repository.AccountRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
+/**
+ * Orchestrates Finary API sync in two phases:
+ * 1. preview(totp) — authenticate, fetch accounts + transactions, cache, return preview
+ * 2. execute(syncToken, mappings) — apply user mappings, import accounts + transactions
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class FinaryApiSyncService {
+
+    private static final List<String> ACCOUNT_CATEGORIES = List.of(
+        "checkings", "savings", "investments", "real_estates", "cryptos",
+        "fonds_euro", "commodities", "credits", "other_assets", "startups"
+    );
+    private static final List<String> TRANSACTION_CATEGORIES = List.of(
+        "checkings", "savings", "investments", "credits"
+    );
+
+    private final FinaryApiClient finaryApiClient;
+    private final FinaryProperties finaryProperties;
+    private final AccountRepository accountRepository;
+    private final FinaryPersistenceHelper persistenceHelper;
+
+    private final ConcurrentHashMap<String, SyncSessionData> cache = new ConcurrentHashMap<>();
+
+    /**
+     * Preview phase: authenticate, fetch all accounts + transactions, cache data, return preview.
+     */
+    public FinaryPreviewResponse preview(String totp) {
+        String email = finaryProperties.getEmail();
+        String password = finaryProperties.getPassword();
+
+        if (email == null || email.isBlank() || password == null || password.isBlank()) {
+            throw new SyncException("Finary credentials not configured. Set FINARY_EMAIL and FINARY_PASSWORD environment variables.");
+        }
+
+        try {
+            // Authenticate
+            log.info("Authenticating to Finary API (preview)");
+            String jwt = finaryApiClient.authenticate(email, password, totp);
+
+            // Get organization context
+            log.info("Fetching organization context");
+            FinaryApiClient.OrgContext ctx = finaryApiClient.fetchOrganizationContext(jwt);
+
+            // Fetch all accounts across categories
+            log.info("Fetching accounts from all categories");
+            List<FinaryAccountDto> allAccounts = new ArrayList<>();
+            Map<String, String> externalIdToCategory = new HashMap<>();
+
+            for (String category : ACCOUNT_CATEGORIES) {
+                try {
+                    List<FinaryAccountDto> accounts = finaryApiClient.fetchCategoryAccounts(jwt, ctx, category);
+                    log.info("Fetched {} accounts from category: {}", accounts.size(), category);
+                    for (FinaryAccountDto acc : accounts) {
+                        allAccounts.add(acc);
+                        externalIdToCategory.put("finary_" + category + "_" + acc.id(), category);
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to fetch accounts from category {}: {}", category, e.getMessage());
+                    throw new SyncException("Failed to fetch accounts from " + category, e);
+                }
+            }
+
+            // Fetch all transactions across categories
+            log.info("Fetching transactions from categories");
+            Map<String, List<FinaryTransactionDto>> transactionsByCategory = new HashMap<>();
+            int totalTx = 0;
+
+            for (String category : TRANSACTION_CATEGORIES) {
+                try {
+                    List<FinaryTransactionDto> txs = fetchAllTransactionPages(jwt, ctx, category);
+                    transactionsByCategory.put(category, txs);
+                    totalTx += txs.size();
+                    log.info("Fetched {} transactions from category: {}", txs.size(), category);
+                } catch (Exception e) {
+                    log.error("Failed to fetch transactions from category {}: {}", category, e.getMessage());
+                    throw new SyncException("Failed to fetch transactions from " + category, e);
+                }
+            }
+
+            // Cache everything with a sync token
+            String syncToken = UUID.randomUUID().toString();
+            SyncSessionData sessionData = new SyncSessionData(
+                allAccounts, transactionsByCategory, externalIdToCategory, Instant.now()
+            );
+            cache.put(syncToken, sessionData);
+
+            // Build preview: count transactions per account
+            Map<String, Integer> txCountByAccountId = new HashMap<>();
+            for (List<FinaryTransactionDto> txs : transactionsByCategory.values()) {
+                for (FinaryTransactionDto tx : txs) {
+                    txCountByAccountId.merge(tx.account().id(), 1, Integer::sum);
+                }
+            }
+
+            List<FinaryAccountPreview> previews = allAccounts.stream()
+                .map(acc -> {
+                    String category = externalIdToCategory.get("finary_" + findCategoryForAccount(acc, allAccounts, externalIdToCategory) + "_" + acc.id());
+                    return new FinaryAccountPreview(
+                        acc.name(),
+                        acc.institution() != null ? acc.institution().name() : "Finary",
+                        findCategoryForAccount(acc, allAccounts, externalIdToCategory),
+                        FinaryPersistenceHelper.suggestTypeFromApiCategory(findCategoryForAccount(acc, allAccounts, externalIdToCategory)),
+                        acc.balance() != null ? acc.balance() : 0,
+                        acc.currency() != null ? acc.currency().code() : "EUR",
+                        txCountByAccountId.getOrDefault(acc.id(), 0)
+                    );
+                })
+                .collect(Collectors.toList());
+
+            // Fetch existing Picsou accounts
+            List<AccountResponse> existing = accountRepository.findAll().stream()
+                .map(a -> AccountResponse.from(a, a.getCurrentBalance()))
+                .collect(Collectors.toList());
+
+            log.info("Preview ready: {} accounts, {} total transactions", allAccounts.size(), totalTx);
+            return new FinaryPreviewResponse(previews, existing, totalTx, syncToken);
+
+        } catch (SyncException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Finary API preview failed: {}", e.getMessage(), e);
+            throw new SyncException("Finary API preview failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute phase: retrieve cached data, apply mappings, create/update accounts, import transactions.
+     */
+    @Transactional
+    public FinaryImportResultResponse execute(String syncToken, List<FinaryAccountMapping> mappings) {
+        SyncSessionData session = cache.get(syncToken);
+        if (session == null) {
+            throw new SyncException("Sync session expired or invalid — please start a new sync");
+        }
+        cache.remove(syncToken);
+
+        int accountsCreated = 0;
+        int accountsMapped = 0;
+        int accountsSkipped = 0;
+        int transactionsImported = 0;
+        List<ImportedAccountSummary> imported = new ArrayList<>();
+
+        // Map finaryName -> FinaryAccountDto (we need to find by name since that's what mappings use)
+        Map<String, FinaryAccountDto> finaryByName = session.allAccounts().stream()
+            .collect(Collectors.toMap(FinaryAccountDto::name, a -> a, (a, b) -> a));
+
+        for (FinaryAccountMapping mapping : mappings) {
+            FinaryAccountDto finaryAcc = finaryByName.get(mapping.finaryName());
+            if (finaryAcc == null) continue;
+
+            String cat = session.externalIdToCategory().get("finary_" + mapping.finaryCategory() + "_" + finaryAcc.id());
+            String category = cat != null ? cat : mapping.finaryCategory();
+            String externalId = "finary_" + category + "_" + finaryAcc.id();
+
+            Account account = null;
+
+            if (mapping.action() == FinaryMappingAction.SKIP) {
+                accountsSkipped++;
+                continue;
+            } else if (mapping.action() == FinaryMappingAction.MAP_EXISTING) {
+                account = accountRepository.findById(mapping.targetAccountId())
+                    .orElseThrow(() -> new SyncException(
+                        "Account " + mapping.targetAccountId() + " not found"));
+                account.setCurrentBalance(BigDecimal.valueOf(finaryAcc.balance() != null ? finaryAcc.balance() : 0));
+                account.setCurrency(finaryAcc.currency() != null ? finaryAcc.currency().code() : "EUR");
+                account.setLastSyncedAt(Instant.now());
+                account.setExternalAccountId(externalId);
+                accountRepository.save(account);
+                accountsMapped++;
+                log.debug("Mapped account: {} -> {} (balance: {})", finaryAcc.name(), account.getName(), finaryAcc.balance());
+            } else if (mapping.action() == FinaryMappingAction.CREATE_NEW) {
+                NewAccountDetails det = mapping.newAccount();
+                account = Account.builder()
+                    .name(det.name())
+                    .type(det.type())
+                    .provider(det.provider() != null ? det.provider() : "Finary")
+                    .currency(det.currency())
+                    .currentBalance(BigDecimal.valueOf(finaryAcc.balance() != null ? finaryAcc.balance() : 0))
+                    .isManual(true)
+                    .color(det.color() != null ? det.color() : FinaryPersistenceHelper.defaultColorForType(det.type()))
+                    .externalAccountId(externalId)
+                    .lastSyncedAt(Instant.now())
+                    .build();
+                account = accountRepository.save(account);
+                accountsCreated++;
+                log.debug("Created account: {} (balance: {})", account.getName(), finaryAcc.balance());
+            }
+
+            if (account != null) {
+                // Import transactions for this account
+                List<FinaryTransactionDto> categoryTxs = session.transactionsByCategory().getOrDefault(category, List.of());
+                List<FinaryTransactionDto> accountTxs = categoryTxs.stream()
+                    .filter(tx -> tx.account().id().equals(finaryAcc.id()))
+                    .toList();
+
+                if (!accountTxs.isEmpty()) {
+                    final Account finalAccount = account;
+                    FinaryPersistenceHelper.ParsedFinaryAccount fakeAcc = new FinaryPersistenceHelper.ParsedFinaryAccount(
+                        finalAccount.getName(), "Finary", category,
+                        finalAccount.getCurrentBalance(), finalAccount.getCurrency()
+                    );
+
+                    List<FinaryPersistenceHelper.ParsedFinaryTransaction> parsedTx = accountTxs.stream()
+                        .map(tx -> new FinaryPersistenceHelper.ParsedFinaryTransaction(
+                            finalAccount.getName(),
+                            Instant.parse(tx.date()).atZone(ZoneOffset.UTC).toLocalDate(),
+                            tx.displayName() != null ? tx.displayName() : tx.name(),
+                            BigDecimal.valueOf(tx.value() != null ? tx.value() : 0),
+                            tx.transactionType(),
+                            tx.category() != null ? tx.category().name() : "",
+                            tx.currency().code()
+                        ))
+                        .collect(Collectors.toList());
+
+                    transactionsImported += persistenceHelper.importTransactions(finalAccount, fakeAcc, parsedTx);
+                }
+
+                imported.add(new ImportedAccountSummary(
+                    account.getId(), account.getName(), account.getType(),
+                    account.getCurrentBalance().doubleValue(), account.getColor()
+                ));
+            }
+        }
+
+        log.info("Finary sync completed: {} created, {} mapped, {} skipped, {} transactions",
+            accountsCreated, accountsMapped, accountsSkipped, transactionsImported);
+
+        return new FinaryImportResultResponse(
+            accountsCreated, accountsMapped, accountsSkipped,
+            0, transactionsImported, imported
+        );
+    }
+
+    /**
+     * Fetch all transaction pages for a category (paginate until result < pageSize)
+     */
+    private List<FinaryTransactionDto> fetchAllTransactionPages(String jwt, FinaryApiClient.OrgContext ctx, String category) {
+        List<FinaryTransactionDto> allTx = new ArrayList<>();
+        int page = 1;
+        int pageSize = 200;
+
+        while (true) {
+            List<FinaryTransactionDto> batch = finaryApiClient.fetchCategoryTransactions(jwt, ctx, category, page, pageSize);
+            if (batch.isEmpty()) break;
+            allTx.addAll(batch);
+            if (batch.size() < pageSize) break;
+            page++;
+        }
+
+        return allTx;
+    }
+
+    /**
+     * Find the category for a given account by looking up its external ID in the map
+     */
+    private String findCategoryForAccount(FinaryAccountDto acc, List<FinaryAccountDto> allAccounts,
+                                           Map<String, String> externalIdToCategory) {
+        for (Map.Entry<String, String> entry : externalIdToCategory.entrySet()) {
+            if (entry.getKey().endsWith("_" + acc.id())) {
+                return entry.getValue();
+            }
+        }
+        return "other_assets";
+    }
+
+    /**
+     * Cleanup old cache entries (older than 10 minutes)
+     */
+    @Scheduled(fixedDelay = 60_000, initialDelay = 60_000)
+    void cleanupExpiredCache() {
+        Instant tenMinutesAgo = Instant.now().minusSeconds(600);
+        cache.entrySet().removeIf(e -> e.getValue().createdAt().isBefore(tenMinutesAgo));
+    }
+}
