@@ -56,11 +56,11 @@ function groupByYear(months: GoalMonthEntry[]): { year: number; entries: GoalMon
 // ---------------------------------------------------------------------------
 
 const COLORS = {
-  success: 'hsl(var(--primary))',
-  warning: 'hsl(var(--primary) / 0.6)',
-  destructive: 'hsl(var(--destructive) / 0.7)',
-  muted: 'hsl(var(--muted))',
-  mutedFg: 'hsl(var(--muted-foreground))',
+  success: 'var(--primary)',
+  warning: 'color-mix(in oklch, var(--primary) 60%, transparent)',
+  destructive: 'color-mix(in oklch, var(--destructive) 70%, transparent)',
+  muted: 'var(--muted)',
+  mutedFg: 'var(--muted-foreground)',
 } as const
 
 function ProgressRing({ pct, color, size = 80, stroke = 9 }: {
@@ -75,7 +75,7 @@ function ProgressRing({ pct, color, size = 80, stroke = 9 }: {
 
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--border))" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
       <circle
         cx={size / 2} cy={size / 2} r={r} fill="none"
         stroke={color} strokeWidth={stroke}
@@ -136,7 +136,7 @@ function YearGridView({ months, selectedYm, onSelect }: {
             <CardTitle className="text-xs font-bold tracking-wider uppercase text-muted-foreground">{year}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-6 gap-3">
               {entries.map(entry => {
                 const isSelected = selectedYm === entry.yearMonth
                 const hasOverride = entry.override != null
@@ -485,7 +485,7 @@ export function GoalCalendarPage() {
         <Skeleton className="h-9 w-72" />
         <Card>
           <CardContent className="p-6">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-6 gap-3">
               {Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="flex flex-col items-center gap-2.5 rounded-xl border border-border px-2 py-3">
                   <Skeleton className="h-2.5 w-8" />
