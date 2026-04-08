@@ -20,10 +20,14 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "dashboard.desc": "Overview & net worth",
     "accounts": "Accounts",
+    "accounts.desc": "Balances & transactions",
     "goals": "Goals",
+    "goals.desc": "Track your savings",
     "sync": "Sync",
     "settings": "Settings",
+    "settings.desc": "Preferences & account",
     "logout": "Logout"
   },
   "auth": {
@@ -53,7 +57,16 @@
     },
     "allocation": "Allocation",
     "goals": "Goals",
+    "goalsDescription": "Active savings targets",
     "noGoals": "No goals defined",
+    "newGoal": "New Goal",
+    "achieved": "achieved",
+    "goalsSummary": "Track your progress towards your financial goals.",
+    "holdings": "Holdings",
+    "holdingsDescription": "Your portfolio at a glance",
+    "searchHoldings": "Search holdings or tickers...",
+    "allHoldings": "All",
+    "shares": "shares",
     "gainLoss": "Gain / Loss",
     "recentAccounts": "Recent accounts",
     "viewAll": "View all"
@@ -79,7 +92,17 @@
     "currentBalance": "Current balance",
     "snapshots": "Monthly snapshots",
     "addSnapshot": "Save",
-    "monthlyHistory": "Month-end balance"
+    "monthlyHistory": "Month-end balance",
+    "evolution": "Balance evolution",
+    "filters": {
+      "ALL": "All",
+      "STOCKS": "Stocks & Funds",
+      "METALS": "Precious Metals",
+      "SAVINGS": "Savings",
+      "CHECKING": "Current accounts",
+      "CRYPTO": "Crypto",
+      "REAL_ESTATE": "Real estate"
+    }
   },
   "accountTypes": {
     "checking": "Checking",
@@ -143,6 +166,25 @@
     "clickMonthHint": "Click a month to see details",
     "noData": "—",
     "futureMonth": "···"
+  },
+  "addAccount": {
+    "title": "Add account",
+    "manual": "Manual",
+    "or": "or",
+    "bankConnected": "Complete the connection in the new tab",
+    "exchangeConnected": "Exchange connected!",
+    "walletConnected": "Wallet tracked!",
+    "trConnected": "Trade Republic connected!",
+    "syncing": "Syncing your accounts",
+    "syncingDesc": "We're pulling in your latest transactions. This usually takes a few seconds.",
+    "desc": {
+      "banks": "Connect your banks via OAuth",
+      "exchanges": "Binance, Kraken...",
+      "wallets": "Bitcoin, Ethereum, Solana...",
+      "tr": "Trade Republic",
+      "finary": "Import from Finary",
+      "manual": "Create an account manually"
+    }
   },
   "sync": {
     "title": "Synchronization",

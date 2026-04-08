@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { BankSyncTab } from './BankSyncTab'
@@ -9,11 +10,13 @@ import { FinaryTab } from './FinaryTab'
 
 export function SyncPage() {
   const { t } = useTranslation()
+  const [searchParams] = useSearchParams()
+  const defaultTab = searchParams.get('tab') ?? 'banks'
 
   return (
     <div className="space-y-6">
       <PageHeader title={t('sync.title')} />
-      <Tabs defaultValue="banks">
+      <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="banks">{t('sync.banks.title')}</TabsTrigger>
           <TabsTrigger value="exchanges">{t('sync.exchanges.title')}</TabsTrigger>

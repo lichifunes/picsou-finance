@@ -42,6 +42,8 @@
 | Price service | 2026-04-04 | [price-service.md](./features/price-service.md) |
 | Live prices (holdings) | 2026-04-04 | [live-prices-holdings.md](./features/live-prices-holdings.md) |
 | Finary import | 2026-04-04 | [finary-import.md](./features/finary-import.md) |
+| Accounts overview (stacked chart + filters) | 2026-04-09 | [accounts-overview.md](./features/accounts-overview.md) |
+| Add Account modal (unified sync + manual) | 2026-04-09 | [add-account-modal.md](./features/add-account-modal.md) |
 
 ## Conventions
 

@@ -20,10 +20,14 @@
   },
   "nav": {
     "dashboard": "Tableau de bord",
+    "dashboard.desc": "Vue d'ensemble & patrimoine",
     "accounts": "Comptes",
+    "accounts.desc": "Soldes & transactions",
     "goals": "Objectifs",
+    "goals.desc": "Suivi de vos épargnes",
     "sync": "Synchronisation",
     "settings": "Paramètres",
+    "settings.desc": "Préférences & compte",
     "logout": "Déconnexion"
   },
   "auth": {
@@ -53,7 +57,16 @@
     },
     "allocation": "Allocation",
     "goals": "Objectifs",
+    "goalsDescription": "Objectifs d'épargne actifs",
     "noGoals": "Aucun objectif défini",
+    "newGoal": "Nouvel objectif",
+    "achieved": "atteint",
+    "goalsSummary": "Suivez votre progression vers vos objectifs financiers.",
+    "holdings": "Patrimoine",
+    "holdingsDescription": "Votre portefeuille en un coup d'oeil",
+    "searchHoldings": "Rechercher des titres ou tickers...",
+    "allHoldings": "Tout",
+    "shares": "parts",
     "gainLoss": "Plus-value / Moins-value",
     "recentAccounts": "Comptes récents",
     "viewAll": "Voir tout"
@@ -79,7 +92,17 @@
     "currentBalance": "Solde actuel",
     "snapshots": "Relevés mensuels",
     "addSnapshot": "Enregistrer",
-    "monthlyHistory": "Solde en fin de mois"
+    "monthlyHistory": "Solde en fin de mois",
+    "evolution": "Évolution des soldes",
+    "filters": {
+      "ALL": "Tout",
+      "STOCKS": "Actions & Fonds",
+      "METALS": "Métaux Précieux",
+      "SAVINGS": "Livrets",
+      "CHECKING": "Comptes courants",
+      "CRYPTO": "Crypto",
+      "REAL_ESTATE": "Immobilier"
+    }
   },
   "accountTypes": {
     "checking": "Compte courant",
@@ -143,6 +166,25 @@
     "clickMonthHint": "Cliquez sur un mois pour voir les détails",
     "noData": "—",
     "futureMonth": "···"
+  },
+  "addAccount": {
+    "title": "Ajouter un compte",
+    "manual": "Manuel",
+    "or": "ou",
+    "bankConnected": "Complétez la connexion dans le nouvel onglet",
+    "exchangeConnected": "Exchange connecté !",
+    "walletConnected": "Wallet suivi !",
+    "trConnected": "Trade Republic connecté !",
+    "syncing": "Synchronisation en cours...",
+    "syncingDesc": "Récupération de vos dernières transactions. Cela prend généralement quelques secondes.",
+    "desc": {
+      "banks": "Connecter vos banques via OAuth",
+      "exchanges": "Binance, Kraken...",
+      "wallets": "Bitcoin, Ethereum, Solana...",
+      "tr": "Trade Republic",
+      "finary": "Importer depuis Finary",
+      "manual": "Créer un compte manuellement"
+    }
   },
   "sync": {
     "title": "Synchronisation",
