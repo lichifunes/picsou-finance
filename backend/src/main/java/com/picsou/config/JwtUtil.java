@@ -1,5 +1,6 @@
 package com.picsou.config;
 
+import com.picsou.model.AppUser;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,17 +34,19 @@ public class JwtUtil {
         this.refreshExpiryDays = refreshExpiryDays;
     }
 
-    public String generateAccessToken(String username) {
-        return buildToken(username, "access", Instant.now().plus(accessExpiryMinutes, ChronoUnit.MINUTES));
+    public String generateAccessToken(AppUser user) {
+        return buildToken(user, "access", Instant.now().plus(accessExpiryMinutes, ChronoUnit.MINUTES));
     }
 
-    public String generateRefreshToken(String username) {
-        return buildToken(username, "refresh", Instant.now().plus(refreshExpiryDays, ChronoUnit.DAYS));
+    public String generateRefreshToken(AppUser user) {
+        return buildToken(user, "refresh", Instant.now().plus(refreshExpiryDays, ChronoUnit.DAYS));
     }
 
-    private String buildToken(String subject, String tokenType, Instant expiry) {
+    private String buildToken(AppUser user, String tokenType, Instant expiry) {
         return Jwts.builder()
-            .subject(subject)
+            .subject(user.getUsername())
+            .claim("uid", user.getId())
+            .claim("role", user.getRole().name())
             .claim("type", tokenType)
             .issuedAt(Date.from(Instant.now()))
             .expiration(Date.from(expiry))
