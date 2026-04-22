@@ -22,8 +22,12 @@ import {
   LogOut,
   Users,
   ChevronRight,
+  Check,
+  X,
+  Pencil,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { api } from '@/lib/api-client'
 
 // ---------------------------------------------------------------------------
 // Toggle group button (theme / language)
@@ -101,7 +105,43 @@ export function SettingsPage() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+  const setUsername = useAuthStore((s) => s.setUsername)
   const { dateFormat, setDateFormat } = useAppStore()
+
+  // Username editing -------------------------------------------------------
+  const [editingUsername, setEditingUsername] = useState(false)
+  const [newUsername, setNewUsername] = useState('')
+  const [usernameError, setUsernameError] = useState<string | null>(null)
+  const [usernameSaving, setUsernameSaving] = useState(false)
+
+  function startEditUsername() {
+    setNewUsername(user?.username ?? '')
+    setUsernameError(null)
+    setEditingUsername(true)
+  }
+
+  function cancelEditUsername() {
+    setEditingUsername(false)
+    setUsernameError(null)
+  }
+
+  async function saveUsername() {
+    const trimmed = newUsername.trim()
+    if (!trimmed || trimmed === user?.username) { setEditingUsername(false); return }
+    if (trimmed.length < 3) { setUsernameError('3 caractères minimum'); return }
+    if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) { setUsernameError('Lettres, chiffres, . _ - uniquement'); return }
+    setUsernameSaving(true)
+    setUsernameError(null)
+    try {
+      await api.patch('/auth/username', { newUsername: trimmed })
+      setUsername(trimmed)
+      setEditingUsername(false)
+    } catch (err: any) {
+      setUsernameError(err.response?.status === 409 ? 'Nom d\'utilisateur déjà pris' : 'Erreur, réessayez')
+    } finally {
+      setUsernameSaving(false)
+    }
+  }
 
   // Theme -----------------------------------------------------------------
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
@@ -192,15 +232,38 @@ export function SettingsPage() {
         description={t('settings.accountDescription')}
       >
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">
+          <div className="flex items-center justify-between gap-4">
+            <Label className="text-sm font-medium shrink-0">
               {t('settings.username')}
             </Label>
-            <Input
-              value={user?.username ?? ''}
-              readOnly
-              className="max-w-[200px] bg-muted"
-            />
+            {editingUsername ? (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={newUsername}
+                    onChange={e => setNewUsername(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveUsername(); if (e.key === 'Escape') cancelEditUsername() }}
+                    className="w-44"
+                    autoFocus
+                    disabled={usernameSaving}
+                  />
+                  <Button size="icon-sm" variant="ghost" onClick={saveUsername} disabled={usernameSaving}>
+                    <Check className="size-4 text-green-600" />
+                  </Button>
+                  <Button size="icon-sm" variant="ghost" onClick={cancelEditUsername} disabled={usernameSaving}>
+                    <X className="size-4" />
+                  </Button>
+                </div>
+                {usernameError && <p className="text-xs text-destructive">{usernameError}</p>}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{user?.username}</span>
+                <Button size="icon-sm" variant="ghost" onClick={startEditUsername}>
+                  <Pencil className="size-3.5" />
+                </Button>
+              </div>
+            )}
           </div>
           <div className="flex justify-end">
             <Button variant="destructive" onClick={handleLogout}>

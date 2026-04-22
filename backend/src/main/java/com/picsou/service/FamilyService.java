@@ -76,6 +76,10 @@ public class FamilyService {
     public void deleteMember(Long id) {
         FamilyMember member = memberRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found"));
+        AppUser user = userRepository.findByMemberId(id).orElse(null);
+        if (user != null && user.isActivated()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot delete a member who has an active account");
+        }
         memberRepository.delete(member);
     }
 

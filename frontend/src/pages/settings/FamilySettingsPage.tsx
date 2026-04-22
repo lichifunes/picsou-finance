@@ -36,6 +36,7 @@ export function FamilySettingsPage() {
 
 function MemberManagement() {
   const { t } = useTranslation()
+  const user = useAuthStore((s) => s.user)
   const { data: members, isLoading } = useFamilyMembers()
   const createMember = useCreateMember()
   const deleteMember = useDeleteMember()
@@ -59,57 +60,75 @@ function MemberManagement() {
       <CardContent className="space-y-4">
         {/* Existing members list */}
         <div className="space-y-2">
-          {members?.map((member) => (
-            <div key={member.id} className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="font-medium">{member.displayName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {member.managed ? 'Managed profile' : member.activated ? 'Active member' : 'Pending activation'}
-                </p>
+          {members?.map((member) => {
+            const isOwnProfile = member.id === user?.memberId
+            const isIndependent = member.hasLogin && member.activated
+
+            return (
+              <div key={member.id} className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{member.displayName}</p>
+                    {isOwnProfile && (
+                      <span className="text-xs text-muted-foreground">(vous)</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {isIndependent
+                      ? t('family.settings.memberIndependent', 'Compte indépendant')
+                      : member.managed
+                        ? member.hasLogin
+                          ? t('family.settings.memberPending', 'Activation en attente')
+                          : t('family.settings.memberManaged', 'Profil géré')
+                        : t('family.settings.memberAdmin', 'Administrateur')}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {!isIndependent && member.managed && !member.hasLogin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        generateLink.mutate(member.id, {
+                          onSuccess: (data) => setActivationLink(data.activationLink),
+                        })
+                      }}
+                    >
+                      <Link className="mr-1 size-3" />
+                      {t('family.settings.createLogin', 'Create login')}
+                    </Button>
+                  )}
+                  {!isIndependent && !member.activated && member.hasLogin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        generateLink.mutate(member.id, {
+                          onSuccess: (data) => setActivationLink(data.activationLink),
+                        })
+                      }}
+                    >
+                      <Link className="mr-1 size-3" />
+                      {t('family.settings.regenerateLink', 'Regenerate link')}
+                    </Button>
+                  )}
+                  {!isIndependent && !isOwnProfile && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm(t('family.settings.confirmDelete', 'Delete this member and all their data?'))) {
+                          deleteMember.mutate(member.id)
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-2">
-                {member.managed && !member.hasLogin && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      generateLink.mutate(member.id, {
-                        onSuccess: (data) => setActivationLink(data.activationLink),
-                      })
-                    }}
-                  >
-                    <Link className="mr-1 size-3" />
-                    Create login
-                  </Button>
-                )}
-                {!member.activated && member.hasLogin && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      generateLink.mutate(member.id, {
-                        onSuccess: (data) => setActivationLink(data.activationLink),
-                      })
-                    }}
-                  >
-                    <Link className="mr-1 size-3" />
-                    Regenerate link
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (confirm(t('family.settings.confirmDelete', 'Delete this member and all their data?'))) {
-                      deleteMember.mutate(member.id)
-                    }
-                  }}
-                >
-                  <Trash2 className="size-4 text-destructive" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Activation link display */}

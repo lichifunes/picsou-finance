@@ -63,7 +63,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(detail);
         }
 
-        AppUser user = userRepository.findByUsername(req.username())
+        AppUser user = userRepository.findByUsernameWithMember(req.username())
             .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
 
         if (!passwordEncoder.matches(req.password(), user.getPasswordHash())) {
@@ -99,21 +99,18 @@ public class AuthController {
             }
 
             String username = claims.getSubject();
-            AppUser user = userRepository.findByUsername(username)
+            AppUser user = userRepository.findByUsernameWithMember(username)
                 .orElseThrow(() -> new BadCredentialsException("User not found"));
 
-            AppUser fullUser = userRepository.findByIdWithMember(user.getId())
-                .orElseThrow(() -> new BadCredentialsException("User not found"));
-
-            String newAccess = jwtUtil.generateAccessToken(fullUser);
-            String newRefresh = jwtUtil.generateRefreshToken(fullUser); // rotation
+            String newAccess = jwtUtil.generateAccessToken(user);
+            String newRefresh = jwtUtil.generateRefreshToken(user); // rotation
 
             setTokenCookies(httpRes, newAccess, newRefresh);
             return ResponseEntity.ok(Map.of(
-                "username", fullUser.getUsername(),
-                "role", fullUser.getRole().name(),
-                "memberId", fullUser.getMember().getId(),
-                "displayName", fullUser.getMember().getDisplayName()
+                "username", user.getUsername(),
+                "role", user.getRole().name(),
+                "memberId", user.getMember().getId(),
+                "displayName", user.getMember().getDisplayName()
             ));
 
         } catch (Exception ex) {
@@ -127,6 +124,25 @@ public class AuthController {
     public ResponseEntity<Void> logout(HttpServletResponse httpRes) {
         clearTokenCookies(httpRes);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/username")
+    public ResponseEntity<?> changeUsername(
+        @AuthenticationPrincipal AppUser user,
+        @Valid @RequestBody ChangeUsernameRequest req
+    ) {
+        String newUsername = req.newUsername().trim();
+        if (newUsername.equals(user.getUsername())) {
+            return ResponseEntity.ok(Map.of("username", user.getUsername()));
+        }
+        if (userRepository.existsByUsername(newUsername)) {
+            ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+            problem.setDetail("Username already taken");
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+        }
+        user.setUsername(newUsername);
+        userRepository.save(user);
+        return ResponseEntity.ok(Map.of("username", newUsername));
     }
 
     @PostMapping("/change-password")
@@ -213,5 +229,11 @@ public class AuthController {
     record ChangePasswordRequest(
         @NotBlank String currentPassword,
         @NotBlank @Size(min = 8, max = 128) String newPassword
+    ) {}
+
+    record ChangeUsernameRequest(
+        @NotBlank @Size(min = 3, max = 50)
+        @jakarta.validation.constraints.Pattern(regexp = "[a-zA-Z0-9._-]+", message = "Username may only contain letters, digits, dots, underscores and hyphens")
+        String newUsername
     ) {}
 }
