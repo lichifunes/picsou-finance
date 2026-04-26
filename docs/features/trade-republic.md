@@ -1,6 +1,6 @@
 # Feature: Trade Republic Sync
 
-> Last updated: 2026-04-12
+> Last updated: 2026-04-25
 
 ## Context
 
@@ -125,9 +125,30 @@ TRAdapter.refreshSession() --> retry with new token
 | `TransactionTemplate` for background sync | Background thread has no Spring proxy/EntityManager. Programmatic tx is the simplest fix. | `@Async` (self-invocation bypasses proxy), `@EnableAsync` (overhead for single use case) |
 | `holdingRepository.flush()` after delete | Hibernate may defer the DELETE, causing duplicate key on subsequent INSERT with same `(account_id, ticker)` | Rely on Hibernate flush ordering (unreliable) |
 
+## Docker / deployment
+
+The `tr-auth` sidecar uses `python:3.12-slim` as base (not the official `mcr.microsoft.com/playwright/python` image) — see [ADR 2026-04-25](../decisions/2026-04-25-tr-auth-sidecar-slim-image.md) for the size rationale (969MB → 547MB release archive). Only Chromium is installed; Firefox and WebKit are skipped. The container runs as a non-root user (`trauth`). Two ordering rules matter:
+
+1. **Chromium system deps must be `apt-get install`-ed manually.** `playwright install --with-deps` would be simpler but fails on Debian bookworm because it tries to install Ubuntu-only font packages (`ttf-unifont`, `ttf-ubuntu-font-family`). The Dockerfile lists the working subset explicitly.
+2. **`PLAYWRIGHT_BROWSERS_PATH` must be set BEFORE `playwright install chromium` runs**, so the browser lands in a directory owned by `trauth`:
+
+```dockerfile
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers
+RUN pip install --no-cache-dir -r requirements.txt \
+    && playwright install chromium
+RUN chown -R trauth:trauth /app
+USER trauth
+```
+
+Without rule 2, Playwright installs to `/root/.cache/ms-playwright/`, which the `trauth` user cannot read → every `/initiate` call throws an unhandled exception → FastAPI returns 500 with no useful error message.
+
+Both compose files (`docker-compose.yml` at repo root and `docker/docker-compose.yml`) reference `services/tr-auth/Dockerfile`, so a fix here applies to both.
+
 ## Gotchas / Pitfalls
 
 - **tr-auth must be running**: The Python sidecar must be accessible at `app.tr-auth.url` (default `http://tr-auth:8001`). If it is down, auth calls will timeout after 60 seconds.
+- **tr-auth 500 = Playwright crash**: A generic 500 from the sidecar almost always means the Chromium browser could not launch. Check `PLAYWRIGHT_BROWSERS_PATH` is set and `chown` covers it (see Docker section above). Run `docker logs <tr-auth-container>` to confirm.
+- **Dockerfile changes need an explicit rebuild**: `docker compose up -d` does NOT rebuild existing images. After editing `services/tr-auth/Dockerfile`, run `docker compose build tr-auth && docker compose up -d tr-auth`. Symptom of a stale image: `docker compose ps` shows `tr-auth` with a SHA-only `IMAGE` column instead of a tagged name (`picsou-tr-auth` / `docker-tr-auth`), and the runtime error references a path that doesn't match the current Dockerfile (e.g. `/home/trauth/.cache/ms-playwright/` when the new Dockerfile sets `PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers`).
 - **Input validation is strict**: `InitiateAuthRequest` and `CompleteAuthRequest` DTOs enforce `@NotBlank` on all fields. Empty or null values result in a 422 response before reaching the service layer. Ensure frontend sends valid non-blank values.
 - **Frontend API field mapping**: Frontend sends `phoneNumber` and `pin` (not `phone` and `pin`). The API uses ISO field names; if frontend is updated, verify the DTO record field names match.
 - **Error message parsing on frontend**: Error handling extracts specific error codes from deeply nested JSON responses (e.g., `NUMBER_INVALID`, `PIN_INVALID`). If the sidecar changes the error response format, frontend error messages must be updated to match. See `TradeRepublicTab.tsx` `formatAuthError()`.
@@ -149,4 +170,6 @@ TRAdapter.refreshSession() --> retry with new token
 ## Links
 
 - Related ADR: [Ports and adapters](../decisions/2026-01-01-ports-and-adapters.md)
+- Related ADR: [tr-auth as isolated sidecar with Chromium-only image](../decisions/2026-04-25-tr-auth-sidecar-slim-image.md)
 - Related feature: [Encryption at rest](./encryption-at-rest.md)
+- Related feature: [Docker deployment](./docker-deployment.md)

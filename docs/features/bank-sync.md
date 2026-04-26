@@ -82,6 +82,7 @@ SchedulerService.dailyBankSync() --> SyncService.resyncAll()
 
 - **Powens is `@Primary`**: When `POWENS_CLIENT_ID` is set, Spring injects `PowensBankConnector` as the `BankConnectorPort`. Enable Banking is still registered but never injected. To switch back, unset the env var.
 - **Enable Banking RSA key**: The private key must be PKCS8 PEM format. The `ENABLEBANKING_PRIVATE_KEY` env var can contain literal `\n` characters -- both formats are handled in `parsePrivateKey()`.
+- **Enable Banking redirect URI must be registered**: `ENABLEBANKING_REDIRECT_URI` defaults to `http://localhost:5173/sync/callback` (dev only). In production, set it to `http://<host>:8080/sync/callback` in `.env`. The same URL must be registered in the Enable Banking developer portal under the application's Redirect URIs. A mismatch causes a `REDIRECT_URI_NOT_ALLOWED` 400 error at auth initiation — it surfaces in the Add Account modal bank wizard.
 - **ALREADY_AUTHORIZED**: If the OAuth code is reused (e.g. browser back button), `SyncService.completeConnection()` catches the error and falls back to refreshing the latest linked session instead of failing.
 - **Type upgrade on resync**: If the user has not customized an account's type, `upsertAccount()` will upgrade it from CHECKING to the detected type on the next sync. Manual user changes are preserved (only CHECKING is auto-upgraded).
 - **Both providers are optional**: The app starts fine without either. No `BankConnectorPort` bean is required at startup.

@@ -1,6 +1,6 @@
 # Feature: CORS & Cookie Security
 
-> Last updated: 2026-04-22
+> Last updated: 2026-04-22 (SECURE_COOKIES env var)
 
 ## Context
 
@@ -33,7 +33,7 @@ access_token=...; Max-Age=900; Path=/; HttpOnly; SameSite=Lax[; Secure]
 ```
 
 - `SameSite=Lax` — allows cookies on normal navigations, blocks cross-site POST. `Strict` caused failures on Safari iOS (cookies dropped on certain navigation patterns).
-- `Secure` flag is toggled via `app.secure-cookies` property: `true` in prod, `false` in dev (`application-dev.yml`).
+- `Secure` flag is controlled by the `SECURE_COOKIES` env var (default `true`). Set `SECURE_COOKIES=false` when serving over plain HTTP (no TLS — e.g. local NAS on `http://`). Without this, browsers silently drop the cookies and the app loops between dashboard and `/login`.
 - Tokens are re-issued on username change (`PATCH /api/auth/username`) — without this the next request fails because the JWT still carries the old username.
 
 ### Key files
@@ -43,8 +43,9 @@ access_token=...; Max-Age=900; Path=/; HttpOnly; SameSite=Lax[; Secure]
 | `config/SecurityConfig.java` | CORS config: allowed origins, methods, headers, credentials |
 | `config/LoggingCorsProcessor.java` | Logs allowed patterns on CORS rejection |
 | `controller/AuthController.java` | Cookie construction (`addCookie`), token rotation |
-| `resources/application.yml` | `app.cors.allowed-origins`, `app.secure-cookies` |
+| `resources/application.yml` | `app.cors.allowed-origins`, `app.secure-cookies: ${SECURE_COOKIES:true}` |
 | `resources/application-dev.yml` | `app.secure-cookies: false`, CORS TRACE logging |
+| `docker/.env.example` | Documents `SECURE_COOKIES=true/false` |
 | `docker-compose.override.yml` | Dev-only env overrides — **must not hardcode `ALLOWED_ORIGINS`** here |
 
 ## Technical choices
@@ -63,7 +64,7 @@ access_token=...; Max-Age=900; Path=/; HttpOnly; SameSite=Lax[; Secure]
 - **Origin header has no path**: Browsers send `http://host:port` with no trailing slash. Patterns like `http://192.168.1.*:*/` (trailing slash) will never match. Use `http://192.168.1.*:*` or just `*`.
 - **JWT re-issue on username change is mandatory**: The access and refresh tokens contain the username as JWT subject. Updating the DB row without rotating the cookies causes an immediate 401 on the next request (filter can't find user by old username).
 - **`PATCH` must be in allowed methods**: Spring CORS allowed methods don't include PATCH by default. Any `PATCH` endpoint added to the API requires it to be listed explicitly in `SecurityConfig`.
-- **`Secure` flag on HTTP = cookies silently dropped**: If `app.secure-cookies=true` on a non-HTTPS host, browsers silently reject the cookie with no visible error.
+- **`Secure` flag on HTTP = infinite redirect loop**: If `SECURE_COOKIES=true` on a plain HTTP host, the browser silently drops both cookies on `Set-Cookie`. `sessionStorage` is still written (JS-side), so `isAuthenticated` is true, the dashboard loads and fires API calls, gets 401 (no cookie sent), refresh also fails (no cookie), and the 401 handler redirects to `/login?redirect=/`. The login guard sees `sessionStorage` still set, redirects back to `/`. Loop. Fix: `SECURE_COOKIES=false` in `.env`.
 
 ## Tests
 
