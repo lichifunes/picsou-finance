@@ -6,15 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface TransactionsListProps {
   transactions: Transaction[]
   onDelete?: (txId: number) => void
+  onEdit?: (tx: Transaction) => void
 }
 
-export function TransactionsList({ transactions, onDelete }: TransactionsListProps) {
+export function TransactionsList({ transactions, onDelete, onEdit }: TransactionsListProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
 
@@ -81,6 +82,16 @@ export function TransactionsList({ transactions, onDelete }: TransactionsListPro
                         tr.amount >= 0 ? 'text-emerald-500' : 'text-foreground',
                       )}
                     />
+                    {tr.isManual && onEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => onEdit(tr)}
+                      >
+                        <Pencil size={14} />
+                      </Button>
+                    )}
                     {onDelete && tr.isManual && (
                       <Button
                         variant="ghost"

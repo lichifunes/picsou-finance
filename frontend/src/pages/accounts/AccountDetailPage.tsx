@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   useAccount, useAccountHistory, useHoldingsWithLivePrices,
-  useAccountTransactions, useAddSnapshot, useAddTransaction, useDeleteTransaction
+  useAccountTransactions, useAddSnapshot, useAddTransaction, useDeleteTransaction,
+  useUpdateTransaction, useUpdateHolding, useDeleteHolding
 } from '@/features/accounts/hooks'
 import { useHistory } from '@/features/history/hooks'
 import { BalanceHistoryChart } from '@/components/shared/BalanceHistoryChart'
@@ -11,9 +12,11 @@ import { NetWorthChart } from '@/components/shared/NetWorthChart'
 import { HoldingsTable } from '@/components/shared/HoldingsTable'
 import { TransactionsList } from '@/components/shared/TransactionsList'
 import { AddTransactionModal } from '@/components/shared/AddTransactionModal'
+import { EditHoldingModal } from '@/components/shared/EditHoldingModal'
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay'
 import { AccountTypeBadge } from '@/components/shared/AccountTypeBadge'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { LoanDetailSection } from '@/components/loan/LoanDetailSection'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,7 +28,7 @@ import {
 import { ArrowLeft, Calendar, Loader2, TrendingUp, TrendingDown } from 'lucide-react'
 import { formatLocalDate, accountTypeLabel } from '@/lib/utils'
 import { type TimeRange } from '@/components/shared/TimeRangeSelector'
-import type { BalanceSnapshot } from '@/types/api'
+import type { BalanceSnapshot, HoldingResponse, Transaction } from '@/types/api'
 
 const HOLDING_ACCOUNT_TYPES = ['PEA', 'COMPTE_TITRES', 'CRYPTO']
 
@@ -67,10 +70,15 @@ export function AccountDetailPage() {
   const addSnapshot = useAddSnapshot()
   const addTxMutation = useAddTransaction(accountId)
   const deleteTxMutation = useDeleteTransaction(accountId)
+  const updateTxMutation = useUpdateTransaction(accountId)
+  const updateHoldingMutation = useUpdateHolding(accountId)
+  const deleteHoldingMutation = useDeleteHolding(accountId)
   const { data: pnlData } = useHistory(accountId ? [accountId] : [], 12)
 
   const [showHistory, setShowHistory] = useState(false)
   const [showAddTx, setShowAddTx] = useState(false)
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  const [editingHolding, setEditingHolding] = useState<HoldingResponse | null>(null)
   const [values, setValues] = useState<Record<string, string>>({})
   const [modified, setModified] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
@@ -116,6 +124,7 @@ export function AccountDetailPage() {
   if (!account && !isLoading) return null
 
   const chartData = (history ?? []).map(s => ({ date: s.date, balance: s.balance }))
+  const isLoan = account?.type === 'LOAN'
   const showHoldings = account ? HOLDING_ACCOUNT_TYPES.includes(account.type) : false
   const recentSnapshots = [...(history ?? [])].reverse().slice(0, 10)
 
@@ -186,7 +195,7 @@ export function AccountDetailPage() {
             <p className="text-xs text-muted-foreground mb-1">{t('accounts.currentBalance')}</p>
             <CurrencyDisplay
               value={displayBalance}
-              className="text-3xl font-bold text-foreground"
+              className={`text-3xl font-bold ${isLoan ? 'text-red-500' : 'text-foreground'}`}
             />
             {account.currency !== 'EUR' && (
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -214,8 +223,11 @@ export function AccountDetailPage() {
         </Card>
       ) : null}
 
+      {/* Loan detail */}
+      {isLoan && account && <LoanDetailSection accountId={account.id} />}
+
       {/* History chart */}
-      {showHoldings && pnlData && pnlData.length > 1 ? (
+      {!isLoan && showHoldings && pnlData && pnlData.length > 1 ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t('dashboard.gainLoss')}</CardTitle>
@@ -224,7 +236,7 @@ export function AccountDetailPage() {
             <NetWorthChart data={pnlData} range={range} onRangeChange={setRange} />
           </CardContent>
         </Card>
-      ) : chartData.length > 1 ? (
+      ) : !isLoan && chartData.length > 1 ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t('accounts.history')}</CardTitle>
@@ -238,7 +250,11 @@ export function AccountDetailPage() {
       {/* Holdings */}
       {showHoldings && (
         holdings ? (
-          <HoldingsTable holdings={holdings} />
+          <HoldingsTable
+            holdings={holdings}
+            onEdit={setEditingHolding}
+            onDelete={(h) => deleteHoldingMutation.mutate(h.ticker)}
+          />
         ) : (
           <Card>
             <CardContent className="pt-6">
@@ -249,7 +265,7 @@ export function AccountDetailPage() {
       )}
 
       {/* Transactions */}
-      {transactions ? (
+      {!isLoan && (transactions ? (
         <>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-semibold">{t('accounts.transactions')}</h3>
@@ -260,6 +276,7 @@ export function AccountDetailPage() {
           <TransactionsList
             transactions={transactions}
             onDelete={(txId) => deleteTxMutation.mutate(txId)}
+            onEdit={(tx) => setEditingTx(tx)}
           />
         </>
       ) : (
@@ -268,10 +285,10 @@ export function AccountDetailPage() {
             <Skeleton className="h-32 w-full" />
           </CardContent>
         </Card>
-      )}
+      ))}
 
       {/* Snapshot list */}
-      {recentSnapshots.length > 0 && (
+      {!isLoan && recentSnapshots.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t('accounts.snapshots')}</CardTitle>
@@ -303,6 +320,44 @@ export function AccountDetailPage() {
           isLoading={addTxMutation.isPending}
         />
       )}
+
+      {/* Edit Transaction modal */}
+      {account && editingTx && (
+        <AddTransactionModal
+          open={!!editingTx}
+          onOpenChange={(open) => { if (!open) setEditingTx(null) }}
+          accountId={account.id}
+          accountType={account.type}
+          initialValues={{
+            id: editingTx.id,
+            date: editingTx.date,
+            description: editingTx.description,
+            amount: editingTx.amount,
+            txType: editingTx.txType,
+            ticker: editingTx.ticker ?? undefined,
+            quantity: editingTx.quantity ?? undefined,
+            pricePerUnit: editingTx.pricePerUnit ?? undefined,
+            currency: editingTx.nativeCurrency,
+          }}
+          onSubmit={async (data) => {
+            await updateTxMutation.mutateAsync({ txId: editingTx.id, data })
+            setEditingTx(null)
+          }}
+          isLoading={updateTxMutation.isPending}
+        />
+      )}
+
+      {/* Edit Holding modal */}
+      <EditHoldingModal
+        open={!!editingHolding}
+        onOpenChange={(open) => { if (!open) setEditingHolding(null) }}
+        holding={editingHolding}
+        onSubmit={async (ticker, quantity, averageBuyIn) => {
+          await updateHoldingMutation.mutateAsync({ ticker, data: { quantity, averageBuyIn } })
+          setEditingHolding(null)
+        }}
+        isLoading={updateHoldingMutation.isPending}
+      />
 
       {/* Monthly history dialog */}
       <Dialog open={showHistory} onOpenChange={open => { if (!open) closeHistory() }}>

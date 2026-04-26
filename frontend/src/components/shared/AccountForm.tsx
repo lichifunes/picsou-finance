@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -25,6 +26,14 @@ const accountSchema = z.object({
   isManual: z.boolean(),
   color: z.string(),
   ticker: z.string().max(20).optional(),
+  // Loan-only fields (validated as numbers but optional at the form level — required-ness is enforced at submit when type=LOAN)
+  borrowedAmount: z.number().min(0).optional(),
+  interestRatePct: z.number().min(0).max(100).optional(),
+  monthlyPayment: z.number().min(0).optional(),
+  insuranceMonthly: z.number().min(0).optional(),
+  fileFees: z.number().min(0).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
 })
 
 type AccountFormData = z.infer<typeof accountSchema>
@@ -38,50 +47,50 @@ interface AccountFormProps {
   loading?: boolean
 }
 
+const EMPTY_DEFAULTS: AccountFormData = {
+  name: '',
+  type: 'CHECKING',
+  provider: '',
+  currency: 'EUR',
+  currentBalance: undefined,
+  isManual: false,
+  color: '#6366f1',
+  ticker: '',
+  borrowedAmount: undefined,
+  interestRatePct: undefined,
+  monthlyPayment: undefined,
+  insuranceMonthly: undefined,
+  fileFees: undefined,
+  startDate: '',
+  endDate: '',
+}
+
 export function AccountForm({ open, onOpenChange, onSubmit, defaultValues, title, loading }: AccountFormProps) {
   const { t } = useTranslation()
   const { register, handleSubmit, watch, setValue, reset } = useForm<AccountFormData>({
     resolver: zodResolver(accountSchema),
-    defaultValues: {
-      name: '',
-      type: 'CHECKING',
-      provider: '',
-      currency: 'EUR',
-      currentBalance: undefined,
-      isManual: false,
-      color: '#6366f1',
-      ticker: '',
-      ...defaultValues,
-    },
+    defaultValues: { ...EMPTY_DEFAULTS, ...defaultValues },
   })
 
   const selectedColor = watch('color')
   const selectedType = watch('type')
 
+  // The dialog can be opened directly by the parent (open prop flips to true) — Radix's
+  // onOpenChange does NOT fire in that case, so a one-shot reset on open inside the handler
+  // is unreliable. Instead, sync the form via effect every time the dialog opens or the
+  // editing target changes.
+  useEffect(() => {
+    if (open) {
+      reset({ ...EMPTY_DEFAULTS, ...defaultValues })
+    }
+  }, [open, defaultValues, reset])
+
   function handleFormSubmit(data: AccountFormData) {
     onSubmit(data)
   }
 
-  // Reset form when dialog opens
-  function handleOpenChange(open: boolean) {
-    if (open) {
-      reset({
-        name: '',
-        type: 'CHECKING',
-        provider: '',
-        currency: 'EUR',
-        currentBalance: undefined,
-        isManual: false,
-        color: '#6366f1',
-        ticker: '',
-        ...defaultValues,
-      })
-    }
-    onOpenChange(open)
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{title ?? t('accounts.addAccount')}</DialogTitle>
@@ -135,10 +144,86 @@ export function AccountForm({ open, onOpenChange, onSubmit, defaultValues, title
           )}
 
           {selectedType === 'LOAN' && (
-            <div className="space-y-2">
-              <Label htmlFor="provider">{t('debt.lenderName')}</Label>
-              <Input id="provider" {...register('provider')} placeholder={t('debt.lenderName')} />
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="provider">{t('debt.lenderName')}</Label>
+                <Input id="provider" {...register('provider')} placeholder={t('debt.lenderName')} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="borrowedAmount">{t('debt.borrowedAmount')}</Label>
+                  <Input
+                    id="borrowedAmount"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...register('borrowedAmount', { valueAsNumber: true })}
+                    placeholder="100000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="interestRatePct">{t('debt.interestRate')} (%)</Label>
+                  <Input
+                    id="interestRatePct"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...register('interestRatePct', { valueAsNumber: true })}
+                    placeholder="1.5"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="monthlyPayment">{t('debt.monthlyPayment')}</Label>
+                  <Input
+                    id="monthlyPayment"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...register('monthlyPayment', { valueAsNumber: true })}
+                    placeholder="394.40"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="insuranceMonthly">{t('debt.insuranceMonthly')}</Label>
+                  <Input
+                    id="insuranceMonthly"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...register('insuranceMonthly', { valueAsNumber: true })}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fileFees">{t('debt.fileFees')}</Label>
+                  <Input
+                    id="fileFees"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...register('fileFees', { valueAsNumber: true })}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-2">
+                  {/* spacer to keep grid aligned */}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">{t('debt.startDate')}</Label>
+                  <Input id="startDate" type="date" {...register('startDate')} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">{t('debt.endDate')}</Label>
+                  <Input id="endDate" type="date" {...register('endDate')} />
+                </div>
+              </div>
+            </>
           )}
 
           <div className="space-y-2">

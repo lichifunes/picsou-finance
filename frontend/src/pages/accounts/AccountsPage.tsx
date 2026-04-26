@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useAccounts, useUpdateAccount, useDeleteAccount } from '@/features/accounts/hooks'
+import { useAccounts, useUpdateAccount, useDeleteAccount, useUpdateDebtMetadata } from '@/features/accounts/hooks'
 import { useHistory } from '@/features/history/hooks'
 import { AccountForm } from '@/components/shared/AccountForm'
 import { AddAccountModal } from '@/components/shared/AddAccountModal'
@@ -66,6 +66,13 @@ type AccountFormData = {
   isManual: boolean
   color: string
   ticker?: string
+  borrowedAmount?: number
+  interestRatePct?: number
+  monthlyPayment?: number
+  insuranceMonthly?: number
+  fileFees?: number
+  startDate?: string
+  endDate?: string
 }
 
 export function AccountsPage() {
@@ -74,6 +81,7 @@ export function AccountsPage() {
 
   const { data: accounts, isLoading } = useAccounts()
   const updateAccount = useUpdateAccount()
+  const updateDebt = useUpdateDebtMetadata()
   const deleteAccount = useDeleteAccount()
 
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -218,6 +226,21 @@ export function AccountsPage() {
       ticker: data.ticker || undefined,
     }
     await updateAccount.mutateAsync({ id: editingAccount.id, data: request })
+    if (data.type === 'LOAN' && data.borrowedAmount && data.borrowedAmount > 0) {
+      await updateDebt.mutateAsync({
+        id: editingAccount.id,
+        data: {
+          borrowedAmount: data.borrowedAmount,
+          interestRate: data.interestRatePct != null ? data.interestRatePct / 100 : undefined,
+          monthlyPayment: data.monthlyPayment,
+          insuranceMonthly: data.insuranceMonthly,
+          fileFees: data.fileFees,
+          lenderName: data.provider || undefined,
+          startDate: data.startDate || undefined,
+          endDate: data.endDate || undefined,
+        },
+      })
+    }
     setShowEditForm(false)
     setEditingAccount(null)
   }
@@ -228,20 +251,33 @@ export function AccountsPage() {
     setDeleteId(null)
   }
 
-  const defaultValues: Partial<AccountFormData> | undefined = editingAccount
-    ? {
-        name: editingAccount.name,
-        type: editingAccount.type,
-        provider: editingAccount.provider ?? '',
-        currency: editingAccount.currency,
-        currentBalance: editingAccount.currentBalance,
-        isManual: editingAccount.isManual,
-        color: editingAccount.color,
-        ticker: editingAccount.ticker ?? '',
-      }
-    : undefined
+  const defaultValues: Partial<AccountFormData> | undefined = useMemo(() => {
+    if (!editingAccount) return undefined
+    const debt = editingAccount.debt
+    return {
+      name: editingAccount.name,
+      type: editingAccount.type,
+      provider: (editingAccount.type === 'LOAN' ? debt?.lenderName : editingAccount.provider) ?? '',
+      currency: editingAccount.currency,
+      currentBalance: editingAccount.currentBalance,
+      isManual: editingAccount.isManual,
+      color: editingAccount.color,
+      ticker: editingAccount.ticker ?? '',
+      ...(debt
+        ? {
+            borrowedAmount: debt.borrowedAmount,
+            interestRatePct: debt.interestRate != null ? debt.interestRate * 100 : undefined,
+            monthlyPayment: debt.monthlyPayment ?? undefined,
+            insuranceMonthly: debt.insuranceMonthly ?? undefined,
+            fileFees: debt.fileFees ?? undefined,
+            startDate: debt.startDate ?? '',
+            endDate: debt.endDate ?? '',
+          }
+        : {}),
+    }
+  }, [editingAccount])
 
-  const isMutating = updateAccount.isPending
+  const isMutating = updateAccount.isPending || updateDebt.isPending
 
   return (
     <div className="space-y-6">

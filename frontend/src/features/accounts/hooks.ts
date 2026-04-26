@@ -250,8 +250,18 @@ export function useUpdateDebtMetadata() {
       accountsApi.updateDebtMetadata(id, data),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['accounts', variables.id] })
+      queryClient.invalidateQueries({ queryKey: ['loan-summary', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
+  })
+}
+
+export function useLoanSummary(id: number, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['loan-summary', id],
+    queryFn: () => accountsApi.loanSummary(id),
+    staleTime: QUERY_STALE_TIMES.accountDetail,
+    enabled: enabled && Number.isFinite(id),
   })
 }
 
@@ -275,6 +285,46 @@ export function useDeleteTransaction(accountId: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts', accountId, 'transactions'] })
       queryClient.invalidateQueries({ queryKey: ['accounts', accountId, 'history'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts', accountId] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useUpdateTransaction(accountId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ txId, data }: { txId: number; data: TransactionRequest }) =>
+      accountsApi.updateTransaction(accountId, txId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts', accountId, 'transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts', accountId, 'holdings'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts', accountId, 'history'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts', accountId] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useUpdateHolding(accountId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticker, data }: { ticker: string; data: { quantity: number; averageBuyIn?: number } }) =>
+      accountsApi.updateHolding(accountId, ticker, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts', accountId, 'holdings'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts', accountId] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useDeleteHolding(accountId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ticker: string) => accountsApi.deleteHolding(accountId, ticker),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts', accountId, 'holdings'] })
       queryClient.invalidateQueries({ queryKey: ['accounts', accountId] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },

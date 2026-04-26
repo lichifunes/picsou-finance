@@ -59,6 +59,22 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // 503 setup-required: the backend's SetupFilter signals that the
+    // wizard hasn't been completed yet. Bounce to /setup instead of the
+    // generic 5xx error page.
+    //
+    // We detect it by status + the "setup_required" detail so a genuine
+    // 503 (maintenance, LB drain) still goes to the error page.
+    const setupRequiredBody =
+      error.response?.status === 503 &&
+      ((error.response.data as { detail?: string })?.detail === 'setup_required' ||
+        (typeof error.response.data === 'string' &&
+          error.response.data.includes('setup_required')))
+    if (setupRequiredBody && window.location.pathname !== '/setup') {
+      window.location.href = '/setup'
+      return Promise.reject(error)
+    }
+
     // 5xx: Server errors (GET only to avoid disrupting mutations)
     if (
       error.response?.status >= 500 &&

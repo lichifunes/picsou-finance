@@ -18,9 +18,10 @@ interface AddTransactionModalProps {
   accountType: AccountType
   onSubmit: (data: TransactionRequest) => Promise<void>
   isLoading?: boolean
+  initialValues?: TransactionRequest & { id?: number }
 }
 
-export function AddTransactionModal({ open, onOpenChange, accountId, accountType, onSubmit, isLoading }: AddTransactionModalProps) {
+export function AddTransactionModal({ open, onOpenChange, accountId, accountType, onSubmit, isLoading, initialValues }: AddTransactionModalProps) {
   const isInvestment = INVESTMENT_TYPES.includes(accountType)
 
   const { data: holdings } = useQuery({
@@ -53,9 +54,22 @@ export function AddTransactionModal({ open, onOpenChange, accountId, accountType
     if (match?.name) setName(match.name)
   }, [ticker, holdings])
 
-  // Reset form when modal closes
+  // Reset or populate form when modal opens/closes
   useEffect(() => {
-    if (!open) {
+    if (open && initialValues) {
+      setDate(initialValues.date ? String(initialValues.date) : new Date().toISOString().split('T')[0])
+      if (initialValues.txType === 'BUY' || initialValues.txType === 'SELL') {
+        setInvestType(initialValues.txType)
+        setTicker(initialValues.ticker ?? '')
+        setName(initialValues.description ?? '')
+        setQuantity(initialValues.quantity != null ? String(initialValues.quantity) : '')
+        setPricePerUnit(initialValues.pricePerUnit != null ? String(initialValues.pricePerUnit) : '')
+      } else {
+        setTxDirection(initialValues.amount != null && Number(initialValues.amount) >= 0 ? 'deposit' : 'withdrawal')
+        setDescription(initialValues.description ?? '')
+        setCashAmount(initialValues.amount != null ? String(Math.abs(Number(initialValues.amount))) : '')
+      }
+    } else if (!open) {
       setDate(new Date().toISOString().split('T')[0])
       setDescription('')
       setError(null)
@@ -114,7 +128,7 @@ export function AddTransactionModal({ open, onOpenChange, accountId, accountType
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Ajouter une transaction</DialogTitle>
+          <DialogTitle>{initialValues ? 'Modifier la transaction' : 'Ajouter une transaction'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Date */}
@@ -195,7 +209,7 @@ export function AddTransactionModal({ open, onOpenChange, accountId, accountType
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Ajouter
+              {initialValues ? 'Enregistrer' : 'Ajouter'}
             </Button>
           </DialogFooter>
         </form>

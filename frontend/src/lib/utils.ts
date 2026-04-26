@@ -65,6 +65,8 @@ export function accountTypeLabel(type: string): string {
     CRYPTO: 'Crypto',
     CHECKING: 'Compte courant',
     SAVINGS: 'Épargne',
+    REAL_ESTATE: 'Immobilier',
+    LOAN: 'Emprunt',
     OTHER: 'Autre',
   }
   return labels[type] ?? type

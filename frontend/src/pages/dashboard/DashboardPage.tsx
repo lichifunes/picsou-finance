@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { useDashboard } from '@/features/dashboard/hooks'
+import { useDashboard, useNetWorthIntraday, usePnl } from '@/features/dashboard/hooks'
 import { useHistory } from '@/features/history/hooks'
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -21,6 +21,12 @@ import {
   CardAction,
 } from '@/components/ui/card'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Item,
   ItemContent,
   ItemDescription,
@@ -29,48 +35,113 @@ import {
 } from '@/components/ui/item'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { TrendingUp, TrendingDown, Plus, RefreshCw } from 'lucide-react'
+import { TrendingUp, TrendingDown, Plus, RefreshCw, ChevronDown } from 'lucide-react'
 import { todayLabel } from '@/lib/utils'
 import { GoalDetailModal } from '@/pages/goals/GoalDetailModal'
 
+type WealthMode = 'net' | 'gross' | 'financial'
+
+const EXCLUDED_FINANCIAL = new Set(['CHECKING', 'LOAN'])
+
 export function DashboardPage() {
   const { t } = useTranslation()
-  const { data, isLoading } = useDashboard()
   const [showSyncModal, setShowSyncModal] = useState(false)
   const [range, setRange] = useState<TimeRange>('1Y')
+  const [wealthMode, setWealthMode] = useState<WealthMode>('net')
   const [detailGoalId, setDetailGoalId] = useState<number | null>(null)
 
-  // Derive all account IDs from dashboard distribution
-  const allAccountIds = useMemo(
-    () => data ? [...data.distribution.map(d => d.accountId), ...data.liabilities.map(l => l.accountId)] : [],
-    [data]
-  )
-  const { data: history } = useHistory(allAccountIds, 12)
+  const { data, isLoading } = useDashboard(range)
 
-  const historyForRange = useMemo(() => {
-    if (!history || range === 'ALL' || history.length < 2) return history ?? []
+  // Account IDs filtered by the selected wealth mode — drives both the headline value
+  // and the history chart so the curve never includes categories the mode excludes.
+  const chartAccountIds = useMemo(() => {
+    if (!data) return []
+    switch (wealthMode) {
+      case 'gross':
+        // Assets only (no liabilities)
+        return data.distribution.map(d => d.accountId)
+      case 'financial':
+        // Financial assets: drop checking and any loan that slipped into distribution
+        return data.distribution
+          .filter(d => !EXCLUDED_FINANCIAL.has(d.accountType))
+          .map(d => d.accountId)
+      default:
+        // Net worth: all accounts including liabilities
+        return [...data.distribution.map(d => d.accountId), ...data.liabilities.map(l => l.accountId)]
+    }
+  }, [data, wealthMode])
+  // Accounts that actually have holdings/tickers — used for PnL only.
+  // Mirrors the chart filter: in "financial" mode we still drop excluded categories
+  // (in practice CHECKING/LOAN don't carry holdings, so this is a no-op safety net).
+  const investmentAccountIds = useMemo(() => {
+    if (!data) return []
+    return data.distribution
+      .filter(d => d.hasHoldings)
+      .filter(d => wealthMode !== 'financial' || !EXCLUDED_FINANCIAL.has(d.accountType))
+      .map(d => d.accountId)
+  }, [data, wealthMode])
+  const historyMonths = useMemo(() => {
+    if (range === 'ALL') return 1200
+    if (range === '3M') return 3
+    if (range === '1M' || range === '7D') return 1
+    if (range === 'YTD') return new Date().getMonth() + 1
+    return 12
+  }, [range])
+  const { data: history } = useHistory(chartAccountIds, historyMonths)
+  const { data: intraday } = useNetWorthIntraday(chartAccountIds, range === '24H')
+
+  // Compute fromDate for PnL range
+  const pnlFromDate = useMemo(() => {
     const now = new Date()
     let from: Date
     switch (range) {
-      case '1D': from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1); break
+      case '24H': from = new Date(now.getTime() - 24 * 60 * 60 * 1000); break
       case '7D': from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7); break
       case '1M': from = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()); break
       case '3M': from = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()); break
       case 'YTD': from = new Date(now.getFullYear(), 0, 1); break
       case '1Y': from = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()); break
-      default: return history
+      default: return undefined // ALL → live PnL only
     }
-    return history.filter(p => new Date(p.date) >= from)
-  }, [history, range])
+    return from.toISOString().slice(0, 10)
+  }, [range])
+
+  const { data: pnlData } = usePnl(investmentAccountIds, pnlFromDate)
+
+  // Compute wealth value based on selected mode
+  const wealthValue = useMemo(() => {
+    if (!data) return 0
+    const sumAccounts = (items: typeof data.distribution, exclude?: Set<string>) =>
+      items
+        .filter(d => !exclude || !exclude.has(d.accountType))
+        .reduce((s, d) => s + d.balanceEur, 0)
+
+    switch (wealthMode) {
+      case 'gross':
+        return sumAccounts(data.distribution)
+      case 'financial':
+        return sumAccounts(data.distribution, EXCLUDED_FINANCIAL)
+      default:
+        return data.totalNetWorth
+    }
+  }, [data, wealthMode])
+
+  // PnL: use range fields when available, fall back to live PnL (ALL range)
+  const pnl = pnlData?.rangePnl != null ? pnlData.rangePnl : (pnlData?.pnl ?? 0)
+  const pnlPct = pnlData?.rangePnlPercent != null
+    ? pnlData.rangePnlPercent.toFixed(1)
+    : (pnlData?.pnlPercent != null ? pnlData.pnlPercent.toFixed(1) : null)
+  const pnlPositive = pnl >= 0
 
   if (isLoading || !data) {
     return <LoadingSkeleton />
   }
 
-  // PnL from the latest history point (pre-computed by backend)
-  const pnl = historyForRange.length >= 1 ? historyForRange[historyForRange.length - 1].pnl : 0
-  const pnlPct = pnl !== 0 ? ((pnl / (historyForRange[historyForRange.length - 1]?.invested ?? 1)) * 100).toFixed(1) : null
-  const pnlPositive = pnl >= 0
+  const wealthModeOptions: { value: WealthMode; key: string }[] = [
+    { value: 'net', key: 'netWorth' },
+    { value: 'gross', key: 'grossWorth' },
+    { value: 'financial', key: 'financialWorth' },
+  ]
 
   return (
     <div className="space-y-6">
@@ -89,13 +160,33 @@ export function DashboardPage() {
         }
       />
 
-      {/* Net worth hero */}
+      {/* Wealth hero */}
       <Card>
         <CardContent>
-          <CardTitle>{t('dashboard.netWorth')}</CardTitle>
-          <CurrencyDisplay value={data.totalNetWorth} className="text-4xl font-bold" />
+          <div className="flex items-center">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                  {t(`dashboard.${wealthModeOptions.find(m => m.value === wealthMode)!.key}`)}
+                  <ChevronDown className="size-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {wealthModeOptions.map(m => (
+                  <DropdownMenuItem
+                    key={m.value}
+                    onClick={() => setWealthMode(m.value)}
+                    className={wealthMode === m.value ? 'font-semibold' : ''}
+                  >
+                    {t(`dashboard.${m.key}`)}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <CurrencyDisplay value={wealthValue} className="text-4xl font-bold" />
 
-          {(data.totalLiabilities ?? 0) > 0 && (
+          {(data.totalLiabilities ?? 0) > 0 && wealthMode === 'net' && (
             <div className="mt-2 flex items-center gap-4 text-sm">
               <span className="text-muted-foreground">
                 {t('dashboard.totalAssets')}:
@@ -135,7 +226,7 @@ export function DashboardPage() {
             <CardTitle>{t('dashboard.gainLoss')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <NetWorthChart data={history ?? []} range={range} onRangeChange={setRange} />
+            <NetWorthChart data={history ?? []} intraday={intraday ?? []} range={range} onRangeChange={setRange} />
           </CardContent>
         </Card>
 

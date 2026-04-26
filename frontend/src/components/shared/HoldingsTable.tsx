@@ -3,7 +3,9 @@ import type { HoldingResponse } from '@/types/api'
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay'
 import { PriceFreshnessDot } from '@/components/shared/PriceFreshnessDot'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { Pencil, Trash2 } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -15,9 +17,11 @@ import {
 
 interface HoldingsTableProps {
   holdings: HoldingResponse[]
+  onEdit?: (holding: HoldingResponse) => void
+  onDelete?: (holding: HoldingResponse) => void
 }
 
-export function HoldingsTable({ holdings }: HoldingsTableProps) {
+export function HoldingsTable({ holdings, onEdit, onDelete }: HoldingsTableProps) {
   const { t } = useTranslation()
 
   if (holdings.length === 0) return null
@@ -39,6 +43,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               <TableHead className="text-right">Value</TableHead>
               <TableHead className="text-right">PnL</TableHead>
               <TableHead className="text-right">PnL %</TableHead>
+              {(onEdit || onDelete) && <TableHead />}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -65,6 +70,32 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                 <TableCell className={cn('text-right', h.pnlPercent != null && h.pnlPercent >= 0 ? 'text-emerald-500' : h.pnlPercent != null && h.pnlPercent < 0 ? 'text-red-500' : '')}>
                   {h.pnlPercent != null ? `${h.pnlPercent >= 0 ? '+' : ''}${h.pnlPercent.toFixed(1)}%` : '\u2014'}
                 </TableCell>
+                {(onEdit || onDelete) && (
+                  <TableCell className="text-right">
+                    <div className="inline-flex items-center gap-1">
+                      {onEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          onClick={() => onEdit(h)}
+                        >
+                          <Pencil size={13} />
+                        </Button>
+                      )}
+                      {onDelete && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => onDelete(h)}
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

@@ -70,7 +70,7 @@ function filterByRange(data: AccountsStackedChartProps['data'], range: TimeRange
   const now = new Date()
   let from: Date
   switch (range) {
-    case '1D': from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1); break
+    case '24H': from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1); break
     case '7D': from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7); break
     case '1M': from = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()); break
     case '3M': from = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()); break

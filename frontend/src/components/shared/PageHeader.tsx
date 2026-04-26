@@ -6,7 +6,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ surtitle, title, actions }: PageHeaderProps) {
   return (
-    <div className="flex items-start justify-between mb-6">
+    <div className="flex items-center justify-between mb-6">
       <div>
         {surtitle && (
           <p className="text-[13px] text-muted-foreground mb-1" style={{ fontWeight: 500 }}>

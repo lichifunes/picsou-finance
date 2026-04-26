@@ -10,12 +10,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent } from '@/components/ui/card'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
 import { AccountForm } from '@/components/shared/AccountForm'
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay'
 import { ACCOUNT_COLORS } from '@/lib/constants'
-import { useCreateAccount } from '@/features/accounts/hooks'
+import { useCreateAccount, useUpdateDebtMetadata } from '@/features/accounts/hooks'
 import {
   useSearchInstitutions,
   useInitiateBankSync,
@@ -83,9 +81,9 @@ const SOURCES: { key: WizardStep; icon: typeof Landmark; labelKey: string; descK
 export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
   const { t } = useTranslation()
   const createAccount = useCreateAccount()
+  const updateDebt = useUpdateDebtMetadata()
   const [step, setStep] = useState<WizardStep>('selector')
   const [showManualForm, setShowManualForm] = useState(false)
-  const [isPending, setIsPending] = useState(false)
 
   function handleSourceClick(key: string) {
     if (key === 'manual') {
@@ -99,7 +97,6 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
   function handleDialogChange(open: boolean) {
     if (open) {
       setStep('selector')
-      setIsPending(false)
     }
     onOpenChange(open)
   }
@@ -118,6 +115,13 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
     isManual: boolean
     color: string
     ticker?: string
+    borrowedAmount?: number
+    interestRatePct?: number
+    monthlyPayment?: number
+    insuranceMonthly?: number
+    fileFees?: number
+    startDate?: string
+    endDate?: string
   }) {
     const request: AccountRequest = {
       name: data.name,
@@ -129,7 +133,24 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
       color: data.color,
       ticker: data.ticker || undefined,
     }
-    await createAccount.mutateAsync(request)
+    const created = await createAccount.mutateAsync(request)
+
+    if (data.type === 'LOAN' && data.borrowedAmount && data.borrowedAmount > 0) {
+      await updateDebt.mutateAsync({
+        id: created.id,
+        data: {
+          borrowedAmount: data.borrowedAmount,
+          interestRate: data.interestRatePct != null ? data.interestRatePct / 100 : undefined,
+          monthlyPayment: data.monthlyPayment,
+          insuranceMonthly: data.insuranceMonthly,
+          fileFees: data.fileFees,
+          lenderName: data.provider,
+          startDate: data.startDate || undefined,
+          endDate: data.endDate || undefined,
+        },
+      })
+    }
+
     setShowManualForm(false)
   }
 
@@ -144,22 +165,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
             <DialogDescription />
           </DialogHeader>
 
-          {isPending ? (
-            <Card>
-              <CardContent className="p-0">
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <Loader2 className="size-4 animate-spin" />
-                    </EmptyMedia>
-                    <EmptyTitle>{t('addAccount.syncing')}</EmptyTitle>
-                    <EmptyDescription>{t('addAccount.syncingDesc')}</EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
+          <>
               {step === 'selector' && (
                 <div className="grid grid-cols-1 gap-2">
                   {SOURCES.map(({ key, icon: Icon, labelKey, descKey }) => (
@@ -180,13 +186,12 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
                 </div>
               )}
 
-              {step === 'banks' && <BankWizard onDone={handleDone} onBack={() => setStep('selector')} onPending={setIsPending} />}
-              {step === 'exchanges' && <ExchangeWizard onDone={handleDone} onBack={() => setStep('selector')} onPending={setIsPending} />}
-              {step === 'wallets' && <WalletWizard onDone={handleDone} onBack={() => setStep('selector')} onPending={setIsPending} />}
-              {step === 'tr' && <TradeRepublicWizard onDone={handleDone} onBack={() => setStep('selector')} onPending={setIsPending} />}
-              {step === 'finary' && <FinaryWizard onDone={handleDone} onBack={() => setStep('selector')} onPending={setIsPending} />}
+              {step === 'banks' && <BankWizard onDone={handleDone} onBack={() => setStep('selector')} />}
+              {step === 'exchanges' && <ExchangeWizard onDone={handleDone} onBack={() => setStep('selector')} />}
+              {step === 'wallets' && <WalletWizard onDone={handleDone} onBack={() => setStep('selector')} />}
+              {step === 'tr' && <TradeRepublicWizard onDone={handleDone} onBack={() => setStep('selector')} />}
+              {step === 'finary' && <FinaryWizard onDone={handleDone} onBack={() => setStep('selector')} />}
             </>
-          )}
         </DialogContent>
       </Dialog>
 
@@ -228,7 +233,7 @@ function SuccessState({ message }: { message: string }) {
 // Wizard: Banques
 // ---------------------------------------------------------------------------
 
-function BankWizard({ onDone: _onDone, onBack, onPending }: { onDone: () => void; onBack: () => void; onPending: (v: boolean) => void }) {
+function BankWizard({ onDone: _onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -239,17 +244,14 @@ function BankWizard({ onDone: _onDone, onBack, onPending }: { onDone: () => void
   const searchEnabled = searchQuery.trim().length >= 2
 
   function handleConnect(institutionId: string, institutionName: string) {
-    onPending(true)
     setError(null)
     initiateMutation.mutate(
       { institutionId, institutionName },
       {
         onSuccess: (data) => {
-          onPending(false)
           window.location.href = data.authLink
         },
         onError: (err: any) => {
-          onPending(false)
           const detail = err.response?.data?.detail as string | undefined
           setError(detail || err.message || t('sync.banks.initiateError'))
         },
@@ -318,24 +320,28 @@ function BankWizard({ onDone: _onDone, onBack, onPending }: { onDone: () => void
 // Wizard: Exchanges
 // ---------------------------------------------------------------------------
 
-function ExchangeWizard({ onDone: _onDone, onBack, onPending }: { onDone: () => void; onBack: () => void; onPending: (v: boolean) => void }) {
+function ExchangeWizard({ onDone: _onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const { t } = useTranslation()
   const [exchangeType, setExchangeType] = useState<ExchangeType>('BINANCE')
   const [apiKey, setApiKey] = useState('')
   const [apiSecret, setApiSecret] = useState('')
   const [showSecret, setShowSecret] = useState(false)
   const [done, setDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const addMutation = useAddCryptoExchange()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    onPending(true)
+    setError(null)
     addMutation.mutate(
       { type: exchangeType, apiKey, apiSecret },
       {
-        onSuccess: () => { onPending(false); setDone(true) },
-        onError: () => onPending(false),
+        onSuccess: () => setDone(true),
+        onError: (err: any) => {
+          const detail = err.response?.data?.detail as string | undefined
+          setError(detail || err.message || t('sync.exchanges.connectError'))
+        },
       },
     )
   }
@@ -352,6 +358,12 @@ function ExchangeWizard({ onDone: _onDone, onBack, onPending }: { onDone: () => 
   return (
     <>
       <BackButton onClick={onBack} />
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <span className="flex-1">{error}</span>
+          <Button variant="ghost" size="sm" onClick={() => setError(null)}>x</Button>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label>{t('sync.exchanges.type')}</Label>
@@ -416,23 +428,27 @@ function ExchangeWizard({ onDone: _onDone, onBack, onPending }: { onDone: () => 
 // Wizard: Wallets
 // ---------------------------------------------------------------------------
 
-function WalletWizard({ onDone: _onDone, onBack, onPending }: { onDone: () => void; onBack: () => void; onPending: (v: boolean) => void }) {
+function WalletWizard({ onDone: _onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const { t } = useTranslation()
   const [chain, setChain] = useState<ChainType>('ETHEREUM')
   const [address, setAddress] = useState('')
   const [label, setLabel] = useState('')
   const [done, setDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const addMutation = useAddCryptoWallet()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    onPending(true)
+    setError(null)
     addMutation.mutate(
       { chain, address, label: label || undefined },
       {
-        onSuccess: () => { onPending(false); setDone(true) },
-        onError: () => onPending(false),
+        onSuccess: () => setDone(true),
+        onError: (err: any) => {
+          const detail = err.response?.data?.detail as string | undefined
+          setError(detail || err.message || t('sync.wallets.connectError'))
+        },
       },
     )
   }
@@ -449,6 +465,12 @@ function WalletWizard({ onDone: _onDone, onBack, onPending }: { onDone: () => vo
   return (
     <>
       <BackButton onClick={onBack} />
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <span className="flex-1">{error}</span>
+          <Button variant="ghost" size="sm" onClick={() => setError(null)}>x</Button>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label>{t('sync.wallets.chain')}</Label>
@@ -522,7 +544,7 @@ function formatTrAuthError(error: any, t: (key: string) => string): string {
   return error.message || t('sync.tr.errors.unknownError')
 }
 
-function TradeRepublicWizard({ onDone: _onDone, onBack, onPending }: { onDone: () => void; onBack: () => void; onPending: (v: boolean) => void }) {
+function TradeRepublicWizard({ onDone: _onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const { t } = useTranslation()
   const [authState, setAuthState] = useState<TrState>('IDLE')
   const [phone, setPhone] = useState('')
@@ -537,18 +559,15 @@ function TradeRepublicWizard({ onDone: _onDone, onBack, onPending }: { onDone: (
   function handleInitiate(e: React.FormEvent) {
     e.preventDefault()
     if (pin.length === 0) return
-    onPending(true)
     initiateMutation.mutate(
       { phoneNumber: phone, pin },
       {
         onSuccess: (data) => {
-          onPending(false)
           setProcessId(data.processId)
           setAuthState('AWAITING_TAN')
           setErrorMsg(null)
         },
         onError: (err: any) => {
-          onPending(false)
           setErrorMsg(formatTrAuthError(err, t))
           setAuthState('ERROR')
         },
@@ -559,12 +578,10 @@ function TradeRepublicWizard({ onDone: _onDone, onBack, onPending }: { onDone: (
   function handleTan(e: React.FormEvent) {
     e.preventDefault()
     if (!processId || tan.length === 0) return
-    onPending(true)
     completeMutation.mutate(
       { processId, tan },
       {
         onSuccess: () => {
-          onPending(false)
           setAuthState('CONNECTED')
           setTan('')
           setPhone('')
@@ -573,7 +590,6 @@ function TradeRepublicWizard({ onDone: _onDone, onBack, onPending }: { onDone: (
           setErrorMsg(null)
         },
         onError: (err: any) => {
-          onPending(false)
           setErrorMsg(formatTrAuthError(err, t))
           setAuthState('ERROR')
         },
@@ -664,7 +680,7 @@ function TradeRepublicWizard({ onDone: _onDone, onBack, onPending }: { onDone: (
 
 type FinaryStep = 1 | 2 | 3
 
-function FinaryWizard({ onDone, onBack, onPending }: { onDone: () => void; onBack: () => void; onPending: (v: boolean) => void }) {
+function FinaryWizard({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { data: connectionStatus } = useFinaryConnectionStatus()
@@ -724,7 +740,6 @@ function FinaryWizard({ onDone, onBack, onPending }: { onDone: () => void; onBac
         },
         onError: () => {
           setLoading(false)
-          onPending(false)
         },
       },
     )
@@ -734,12 +749,10 @@ function FinaryWizard({ onDone, onBack, onPending }: { onDone: () => void; onBac
 
   function handleSync() {
     setLoading(true)
-    onPending(true)
     setError(null)
     previewApiMutation.mutate(totpCode || undefined, {
       onSuccess: (data) => {
         setLoading(false)
-        onPending(false)
         setPreviewData(data)
         initMappings(data)
         setIsApiSync(true)
@@ -754,7 +767,6 @@ function FinaryWizard({ onDone, onBack, onPending }: { onDone: () => void; onBac
       },
       onError: (err: any) => {
         setLoading(false)
-        onPending(false)
         if (err.response?.status === 403) {
           setTotpRequired(true)
         } else {
@@ -770,7 +782,6 @@ function FinaryWizard({ onDone, onBack, onPending }: { onDone: () => void; onBac
     previewApiMutation.mutate(totpCode || undefined, {
       onSuccess: (data) => {
         setLoading(false)
-        onPending(false)
         setPreviewData(data)
         initMappings(data)
         setIsApiSync(true)
@@ -779,7 +790,6 @@ function FinaryWizard({ onDone, onBack, onPending }: { onDone: () => void; onBac
       },
       onError: (err: any) => {
         setLoading(false)
-        onPending(false)
         if (err.response?.status === 403) {
           setTotpRequired(true)
         } else {
@@ -791,7 +801,6 @@ function FinaryWizard({ onDone, onBack, onPending }: { onDone: () => void; onBac
 
   function executeWithMappings(token: string, mappingsToUse: FinaryAccountMapping[]) {
     setLoading(true)
-    onPending(true)
     setError(null)
     const mutation = isApiSync ? executeApiMutation : importMutation
     const payload = isApiSync
@@ -801,13 +810,11 @@ function FinaryWizard({ onDone, onBack, onPending }: { onDone: () => void; onBac
     mutation.mutate(payload as any, {
       onSuccess: (data) => {
         setLoading(false)
-        onPending(false)
         setImportResult(data)
         setStep(3)
       },
       onError: (err: unknown) => {
         setLoading(false)
-        onPending(false)
         setError(err instanceof Error ? err.message : t('common.retry'))
       },
     })
@@ -817,11 +824,9 @@ function FinaryWizard({ onDone, onBack, onPending }: { onDone: () => void; onBac
 
   function handleFileUpload(file: File) {
     setLoading(true)
-    onPending(true)
     setError(null)
     previewFileMutation.mutate(file, {
       onSuccess: (data) => {
-        onPending(false)
         setLoading(false)
         setPreviewData(data)
         initMappings(data)
@@ -829,7 +834,6 @@ function FinaryWizard({ onDone, onBack, onPending }: { onDone: () => void; onBac
         setStep(2)
       },
       onError: (err: unknown) => {
-        onPending(false)
         setLoading(false)
         setError(err instanceof Error ? err.message : t('common.retry'))
       },

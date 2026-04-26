@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Search, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { HoldingDetailModal } from '@/components/shared/HoldingDetailModal'
 import type { Account } from '@/types/api'
 
 type FilterType = 'all' | Account['type'] | 'cash'
@@ -44,11 +45,11 @@ const ACCOUNT_TYPE_BADGE: Record<string, string> = {
   OTHER: 'accountTypes.other',
 }
 
-function HoldingsItem({ line }: { line: PortfolioLine }) {
+function HoldingsItem({ line, onClick }: { line: PortfolioLine; onClick: () => void }) {
   const { t } = useTranslation()
 
   return (
-    <Item variant="muted">
+    <Item variant="muted" className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={onClick}>
       <ItemMedia>
         <div className="flex size-12 items-center justify-center rounded-lg border text-sm font-semibold">
           {line.ticker ? line.ticker.slice(0, 4) : line.name.slice(0, 3).toUpperCase()}
@@ -71,17 +72,17 @@ function HoldingsItem({ line }: { line: PortfolioLine }) {
             {t('portfolio.value')}
           </span>
           <CurrencyDisplay value={line.valueEur} className="font-medium tabular-nums" />
-          {line.pnlEur != null && (
+          {line.pnlPercent != null && (
             <span
               className={cn(
                 'inline-flex items-center gap-1 text-xs font-medium tabular-nums',
-                line.pnlEur >= 0 ? 'text-emerald-500' : 'text-red-500',
+                line.pnlPercent >= 0 ? 'text-emerald-500' : 'text-red-500',
               )}
             >
-              {line.pnlEur >= 0
+              {line.pnlPercent >= 0
                 ? <TrendingUp className="size-3" />
                 : <TrendingDown className="size-3" />}
-              {line.pnlPercent?.toFixed(1)}%
+              {line.pnlPercent >= 0 ? '+' : ''}{line.pnlPercent.toFixed(1)}%
             </span>
           )}
         </div>
@@ -95,6 +96,7 @@ export function HoldingsCard() {
   const { data: lines, isLoading } = usePortfolio()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterType>('all')
+  const [selectedLine, setSelectedLine] = useState<PortfolioLine | null>(null)
 
   const filtered = useMemo(() => {
     let result = lines ?? []
@@ -176,13 +178,15 @@ export function HoldingsCard() {
       <CardContent>
         <ItemGroup>
           {filtered.map(line => (
-            <HoldingsItem key={line.id} line={line} />
+            <HoldingsItem key={line.id} line={line} onClick={() => setSelectedLine(line)} />
           ))}
         </ItemGroup>
         {filtered.length === 0 && lines.length > 0 && (
           <p className="py-4 text-center text-sm text-muted-foreground">{t('common.noResults')}</p>
         )}
       </CardContent>
+
+      <HoldingDetailModal line={selectedLine} onClose={() => setSelectedLine(null)} />
     </Card>
   )
 }

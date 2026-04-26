@@ -1,5 +1,5 @@
 import { api } from '@/lib/api-client'
-import type { Account, AccountRequest, BalanceSnapshot, DebtRequest, DebtInfo, HoldingResponse, RealEstateMetadataRequest, RealEstateMetadata, Transaction, TransactionRequest } from '@/types/api'
+import type { Account, AccountRequest, BalanceSnapshot, DebtRequest, DebtInfo, HoldingResponse, LoanScheduleResponse, RealEstateMetadataRequest, RealEstateMetadata, Transaction, TransactionRequest } from '@/types/api'
 
 export const accountsApi = {
   list: () => api.get<Account[]>('/accounts').then(r => r.data),
@@ -25,8 +25,16 @@ export const accountsApi = {
     api.put<RealEstateMetadata>(`/accounts/${id}/real-estate`, data).then(r => r.data),
   updateDebtMetadata: (id: number, data: DebtRequest) =>
     api.put<DebtInfo>(`/accounts/${id}/debt`, data).then(r => r.data),
+  loanSummary: (id: number) =>
+    api.get<LoanScheduleResponse>(`/accounts/${id}/loan-summary`).then(r => r.data),
   addTransaction: (id: number, data: TransactionRequest) =>
     api.post<Transaction>(`/accounts/${id}/transactions`, data).then(r => r.data),
   deleteTransaction: (accountId: number, txId: number) =>
     api.delete(`/accounts/${accountId}/transactions/${txId}`),
+  updateTransaction: (accountId: number, txId: number, data: TransactionRequest) =>
+    api.put<Transaction>(`/accounts/${accountId}/transactions/${txId}`, data).then(r => r.data),
+  updateHolding: (accountId: number, ticker: string, data: { quantity: number; averageBuyIn?: number }) =>
+    api.put<HoldingResponse>(`/accounts/${accountId}/holdings/${ticker}`, data).then(r => r.data),
+  deleteHolding: (accountId: number, ticker: string) =>
+    api.delete(`/accounts/${accountId}/holdings/${ticker}`),
 }

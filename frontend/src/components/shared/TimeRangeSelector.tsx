@@ -1,14 +1,14 @@
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
-export type TimeRange = '1D' | '7D' | '1M' | '3M' | 'YTD' | '1Y' | 'ALL'
+export type TimeRange = '24H' | '7D' | '1M' | '3M' | 'YTD' | '1Y' | 'ALL'
 
 interface TimeRangeSelectorProps {
   value: TimeRange
   onChange: (range: TimeRange) => void
 }
 
-const RANGES: TimeRange[] = ['1D', '7D', '1M', '3M', 'YTD', '1Y', 'ALL']
+const RANGES: TimeRange[] = ['24H', '7D', '1M', '3M', 'YTD', '1Y', 'ALL']
 
 export function TimeRangeSelector({ value, onChange }: TimeRangeSelectorProps) {
   const { t } = useTranslation()

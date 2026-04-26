@@ -20,6 +20,8 @@ export interface DebtInfo {
   lenderName: string | null
   startDate: string | null
   endDate: string | null
+  insuranceMonthly: number | null
+  fileFees: number | null
 }
 
 export interface Account {
@@ -67,6 +69,45 @@ export interface DebtRequest {
   lenderName?: string
   startDate?: string
   endDate?: string
+  insuranceMonthly?: number
+  fileFees?: number
+}
+
+export interface LoanInstallment {
+  number: number
+  date: string
+  capital: number
+  interest: number
+  insurance: number
+  totalPayment: number
+  remainingBalance: number
+}
+
+export interface LoanSummary {
+  totalInstallments: number
+  paidInstallments: number
+  remainingInstallments: number
+  endDate: string | null
+  monthlyPayment: number
+  monthlyCapital: number
+  monthlyInterest: number
+  monthlyInsurance: number
+  totalCost: number
+  totalCapitalCost: number
+  totalInterestCost: number
+  totalInsuranceCost: number
+  fileFees: number
+  totalRepaid: number
+  capitalRepaid: number
+  interestRepaid: number
+  insuranceRepaid: number
+  remainingBalance: number
+  capitalRepaidPct: number
+}
+
+export interface LoanScheduleResponse {
+  summary: LoanSummary
+  schedule: LoanInstallment[]
 }
 
 export interface BalanceSnapshot {
