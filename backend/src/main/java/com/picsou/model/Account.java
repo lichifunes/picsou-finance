@@ -9,6 +9,7 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "account")
+@org.hibernate.annotations.SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -61,4 +62,7 @@ public class Account extends AuditableEntity {
     /** Ticker symbol for live price lookup, e.g. "BTC", "IWDA.AS" */
     @Column(length = 20)
     private String ticker;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 }

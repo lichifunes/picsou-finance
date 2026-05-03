@@ -56,6 +56,9 @@ management:
       show-details: never
 
 app:
+  admin-recovery:
+    enabled: ${ADMIN_RECOVERY_ENABLED:false}
+  public-base-url: ${PUBLIC_BASE_URL:http://localhost:5173}
   jwt:
     secret: ${JWT_SECRET}
     access-token-expiry-minutes: 15

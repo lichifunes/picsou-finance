@@ -53,7 +53,19 @@ export function SetupStepIntro() {
       </div>
 
       {phase === 'greeting' ? (
-        <HelloGreeting onFinish={() => setPhase('content')} />
+        <>
+          <HelloGreeting onFinish={() => setPhase('content')} />
+          <div className="mt-2 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setPhase('content')}
+              aria-label={t('setup.intro.skipAria')}
+              className="rounded-full px-3 py-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              {t('setup.intro.skip')}
+            </button>
+          </div>
+        </>
       ) : (
         <div className="text-center space-y-8 animate-hello-in">
           <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">

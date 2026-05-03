@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+
 @Component
 public class EthereumWalletAdapter implements WalletPort {
 
@@ -36,7 +37,7 @@ public class EthereumWalletAdapter implements WalletPort {
     }
 
     @Override
-    public WalletBalance fetchBalance(String address) {
+    public List<WalletBalance> fetchBalances(String address) {
         Map<String, Object> rpcRequest = Map.of(
             "jsonrpc", "2.0",
             "id", 1,
@@ -53,7 +54,7 @@ public class EthereumWalletAdapter implements WalletPort {
 
         if (response == null) {
             log.warn("Ethereum RPC returned null for address {}", address);
-            return new WalletBalance("ETH", BigDecimal.ZERO);
+            return List.of(new WalletBalance("ETH", BigDecimal.ZERO));
         }
 
         String hexBalance = response.path("result").asText("0x0");
@@ -61,6 +62,6 @@ public class EthereumWalletAdapter implements WalletPort {
         BigDecimal eth = new BigDecimal(wei).divide(WEI_PER_ETH, 18, RoundingMode.HALF_UP);
 
         log.info("Ethereum balance for {}: {} ETH", address, eth);
-        return new WalletBalance("ETH", eth);
+        return List.of(new WalletBalance("ETH", eth));
     }
 }

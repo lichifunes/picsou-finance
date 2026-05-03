@@ -121,8 +121,17 @@ public class CryptoExchangeSyncService {
 
             String externalId = "crypto_exchange_" + session.getExchangeType().name().toLowerCase();
 
-            // Resolve or create the account (without snapshot yet)
-            Account account = resolveAccount(externalId, session.getExchangeType().name(), totalEur, memberId);
+            // Resolve or create the account (without snapshot yet). If the account
+            // was soft-deleted by the user, skip the rest of this sync — the user
+            // explicitly removed it and we won't resurrect.
+            Account account = resolveAccount(externalId, session.getExchangeType().name(), totalEur, memberId)
+                .orElse(null);
+            if (account == null) {
+                throw new SyncException(
+                    "L'historique de ce compte a été supprimé. Retirez la session " +
+                    session.getExchangeType().name() + " dans Réglages → Crypto pour ne plus la synchroniser."
+                );
+            }
 
             // Persist individual holdings before snapshot (so calculateInvestedAmount finds them)
             for (CryptoHolding holding : holdings) {
@@ -182,8 +191,14 @@ public class CryptoExchangeSyncService {
             .orElseThrow(() -> new SyncException("Aucun adapteur trouve pour l'exchange : " + type));
     }
 
-    private Account resolveAccount(String externalId, String exchangeName, BigDecimal balanceEur, Long memberId) {
+    private Optional<Account> resolveAccount(String externalId, String exchangeName, BigDecimal balanceEur, Long memberId) {
         Optional<Account> existing = accountRepository.findByExternalAccountIdAndMemberId(externalId, memberId);
+
+        if (existing.isEmpty() &&
+            accountRepository.existsSoftDeletedByExternalAccountIdAndMemberId(externalId, memberId)) {
+            log.info("Crypto exchange: account externalId={} was soft-deleted, skipping sync", externalId);
+            return Optional.empty();
+        }
 
         Account account;
         if (existing.isPresent()) {
@@ -207,7 +222,7 @@ public class CryptoExchangeSyncService {
                 .build();
         }
 
-        return accountRepository.save(account);
+        return Optional.of(accountRepository.save(account));
     }
 
     public record ExchangeStatusResponse(

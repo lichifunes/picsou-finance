@@ -19,7 +19,7 @@ Picsou syncs bank accounts from French banks. In 1.0.0 the active provider is En
 
 Both providers implement the `BankConnectorPort` interface with four operations: `initiateConnection`, `exchangeCode`, `fetchBalances`, and `searchInstitutions`. The service layer (`SyncService`) never imports adapters directly -- it depends only on the port.
 
-**Enable Banking** (`EnableBankingBankConnector`): Uses the PSD2 Bank Account Data API. Auth is JWT-based (RS256 signed with an RSA private key). Sessions are created via OAuth redirect. After the user authorizes, accounts are linked asynchronously and polled up to 8 times with 3-second delays.
+**Enable Banking** (`EnableBankingBankConnector`): Uses the PSD2 Bank Account Data API. Auth is JWT-based (RS256 signed with an RSA private key). Sessions are created via OAuth redirect. After the user authorizes, accounts are linked asynchronously and polled up to 3 times with 1.5-second delays (≤ 4.5 s total). If the session still has no accounts, the adapter returns an empty list rather than throwing — the requisition is left LINKED so the user can retry from the UI without losing the session id. The previous 24 s blocking poll caused 502 errors at the reverse proxy.
 
 **Powens** (`PowensBankConnector`) — ⚠ experimental, disabled in 1.0.0. Uses screen scraping via the Budget Insight API. Auth is an OAuth webview that handles bank selection and credential entry. The OAuth code is exchanged for a permanent access token. Gated behind `@ConditionalOnExpression` (so it only registers when `POWENS_CLIENT_ID` is set), but `@Primary` was removed for 1.0.0, so Enable Banking remains injected even when the bean is registered.
 
@@ -84,6 +84,13 @@ SchedulerService.dailyBankSync() --> SyncService.resyncAll()
 | Keyword-based type detection | Banks rarely expose a standardized type field; product name is the most reliable signal | Hardcoded institution-to-type mapping |
 | Async polling for Enable Banking accounts | EB links accounts asynchronously after OAuth; polling (8x3s) handles the delay | Webhook (EB does not provide one) |
 | Permanent access token for Powens | Powens tokens do not expire; stored directly as the requisition ID | Refresh token rotation (not needed) |
+
+## Enable Banking onboarding caveats
+
+Two pitfalls cost real users a lot of time during 1.0.0 testing — both are surfaced in the wizard now (`EBStep1Explain`, `EBStep2Credentials`):
+
+- **PRODUCTION vs SANDBOX**: The Enable Banking developer dashboard defaults to SANDBOX, which only exposes fictitious test banks. A user who creates a SANDBOX application will reach the bank picker, see a list of unfamiliar test banks, and never find their real one. The wizard now shows a warning encart on step 1 and forces the user to tick a "my application is in PRODUCTION mode" checkbox before submitting credentials on step 3.
+- **PSD2 scope is current accounts only (`CACC`)**: PSD2 standardises consent for cash accounts. PEA, Assurance Vie, Livret A, and other savings/investment products are out of scope — Enable Banking has no API for them. This is a permanent product limitation, not a Picsou bug. Users should be directed to the dedicated integrations (Trade Republic, BoursoBank sidecar, Finary) or manual entry. The wizard surfaces this on step 1, and `BankSyncTab` repeats the note above the connection list.
 
 ## Gotchas / Pitfalls
 

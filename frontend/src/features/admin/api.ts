@@ -30,4 +30,8 @@ export const adminApi = {
   toggleIntegration: (key: string, enabled: boolean) =>
     api.patch<void>(`/admin/settings/integrations/${key}`, null, { params: { enabled } })
       .then(r => r.data),
+
+  reloadCorsFromEnv: () =>
+    api.post<{ allowedOrigins: string[] }>('/admin/settings/cors/reload-from-env')
+      .then(r => r.data),
 }

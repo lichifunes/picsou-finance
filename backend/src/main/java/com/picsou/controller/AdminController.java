@@ -6,6 +6,7 @@ import com.picsou.dto.AdminSettingsResponse;
 import com.picsou.service.IntegrationsService;
 import com.picsou.service.SetupService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,10 +23,14 @@ public class AdminController {
 
     private final SetupService setupService;
     private final IntegrationsService integrationsService;
+    private final String envAllowedOrigins;
 
-    public AdminController(SetupService setupService, IntegrationsService integrationsService) {
+    public AdminController(SetupService setupService,
+                           IntegrationsService integrationsService,
+                           @Value("${app.cors.allowed-origins:}") String envAllowedOrigins) {
         this.setupService = setupService;
         this.integrationsService = integrationsService;
+        this.envAllowedOrigins = envAllowedOrigins;
     }
 
     @GetMapping("/settings")
@@ -55,6 +60,20 @@ public class AdminController {
     public ResponseEntity<Void> updateSecurity(@Valid @RequestBody AdminSecurityRequest request) {
         setupService.writeSecurity(request.allowedOrigins(), request.secureCookies());
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Overwrites the persisted CORS origins with the live value of the
+     * {@code ALLOWED_ORIGINS} env var. Useful when the operator has changed
+     * the public URL (e.g. moved from http to https) but the wizard already
+     * locked a stale value into {@code app_setting}.
+     */
+    @PostMapping("/settings/cors/reload-from-env")
+    public ResponseEntity<Map<String, Object>> reloadCorsFromEnv() {
+        setupService.reloadCorsFromEnv(envAllowedOrigins);
+        List<String> origins = Arrays.stream(envAllowedOrigins.split(","))
+            .map(String::trim).filter(s -> !s.isEmpty()).toList();
+        return ResponseEntity.ok(Map.of("allowedOrigins", origins));
     }
 
     @PutMapping("/settings/enablebanking")

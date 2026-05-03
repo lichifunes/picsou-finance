@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { PlusCircle, X, ShieldCheck } from 'lucide-react'
+import { PlusCircle, X, ShieldCheck, RotateCw } from 'lucide-react'
 import {
   Card,
   CardContent,
@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { extractErrorMessage } from '@/lib/errors'
-import { useUpdateSecurity } from '@/features/admin/hooks'
+import { useUpdateSecurity, useReloadCorsFromEnv } from '@/features/admin/hooks'
 import type { AdminSecuritySettings } from '@/features/admin/api'
 
 const schema = z.object({
@@ -29,6 +29,7 @@ type FormValues = z.infer<typeof schema>
 export function SecuritySection({ settings }: { settings: AdminSecuritySettings }) {
   const { t } = useTranslation()
   const update = useUpdateSecurity()
+  const reloadCors = useReloadCorsFromEnv()
 
   const { register, handleSubmit, control, reset, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -76,10 +77,34 @@ export function SecuritySection({ settings }: { settings: AdminSecuritySettings 
                 </div>
               ))}
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={() => append('')} className="mt-1">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              {t('admin.security.originAdd')}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => append('')} className="mt-1">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                {t('admin.security.originAdd')}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-1"
+                onClick={() => reloadCors.mutate()}
+                disabled={reloadCors.isPending}
+                title={t('admin.security.reloadFromEnvHint')}
+              >
+                <RotateCw className="mr-2 h-4 w-4" />
+                {reloadCors.isPending
+                  ? t('admin.security.reloadFromEnvLoading')
+                  : t('admin.security.reloadFromEnv')}
+              </Button>
+            </div>
+            {reloadCors.error && (
+              <p role="alert" className="text-xs text-destructive">
+                {extractErrorMessage(reloadCors.error)}
+              </p>
+            )}
+            {reloadCors.isSuccess && (
+              <p className="text-xs text-emerald-600">{t('admin.security.reloadFromEnvDone')}</p>
+            )}
           </div>
 
           <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 p-4">

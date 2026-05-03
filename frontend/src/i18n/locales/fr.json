@@ -293,7 +293,8 @@
       "callbackCompleting": "Récupération des comptes...",
       "callbackDone": "Comptes synchronisés !",
       "callbackError": "Erreur de synchronisation",
-      "initiateError": "Échec de la connexion"
+      "initiateError": "Échec de la connexion",
+      "psd2ScopeNote": "Enable Banking ne synchronise que vos comptes courants (limitation PSD2). Pour vos PEA, AV, Livret A : utilisez Trade Republic, Boursobank, Finary, ou ajoutez-les manuellement."
     },
     "tr": {
       "title": "Trade Republic",
@@ -510,7 +511,11 @@
       "secureCookiesHint": "Activer uniquement si Picsou est servi en HTTPS",
       "save": "Enregistrer",
       "saving": "Enregistrement...",
-      "saved": "Enregistré"
+      "saved": "Enregistré",
+      "reloadFromEnv": "Recharger depuis l'environnement",
+      "reloadFromEnvLoading": "Rechargement...",
+      "reloadFromEnvHint": "Écrase la liste ci-dessus avec la valeur actuelle de la variable d'environnement ALLOWED_ORIGINS. Utile si vous avez changé l'URL publique après le setup initial.",
+      "reloadFromEnvDone": "Origines rechargées depuis l'environnement."
     },
     "enableBanking": {
       "title": "Enable Banking",
@@ -606,7 +611,9 @@
       "title": "Bienvenue sur Picsou.",
       "subtitle": "On vous installe ça en 2 minutes.",
       "cta": "C'est parti",
-      "language": "Langue"
+      "language": "Langue",
+      "skip": "Passer l'animation",
+      "skipAria": "Passer l'animation d'accueil"
     },
     "admin": {
       "surtitle": "VOTRE COMPTE",
@@ -695,13 +702,17 @@
         "signupOpened": "Compte créé ?",
         "continueAfterSignup": "Oui, continuer",
         "psd2Popover": "C'est quoi PSD2 ?",
-        "psd2Body": "PSD2 est la réglementation européenne qui permet aux agrégateurs agréés de lire vos comptes avec votre consentement. Vos identifiants ne quittent jamais votre banque."
+        "psd2Body": "PSD2 est la réglementation européenne qui permet aux agrégateurs agréés de lire vos comptes avec votre consentement. Vos identifiants ne quittent jamais votre banque.",
+        "prodWarningTitle": "Créez une application en mode PRODUCTION",
+        "prodWarningBody": "Dans votre tableau de bord Enable Banking, choisissez bien « Production » lors de la création de l'application — la SANDBOX ne donne accès qu'à des banques de test fictives, pas à vos vraies banques.",
+        "psd2ScopeNote": "Enable Banking ne synchronise que vos comptes courants (limitation PSD2). Pour vos PEA, Assurance Vie, Livret A, etc. : utilisez les intégrations dédiées (Trade Republic, Boursobank, Finary) ou ajoutez-les manuellement."
       },
       "creds": {
         "title": "Collez vos identifiants",
         "body": "Dans votre tableau de bord Enable Banking, créez une application nommée \"Picsou\", puis copiez les deux valeurs qu'elle vous donne. Souvent, l'Application ID et le Key ID sont identiques — c'est normal, recopiez la même valeur dans les deux champs.",
         "applicationId": "Application ID",
-        "keyId": "Key ID"
+        "keyId": "Key ID",
+        "prodAcknowledge": "Je confirme que mon application Enable Banking est bien en mode PRODUCTION (pas SANDBOX)."
       },
       "keypair": {
         "modeGenerate": "Générer une paire de clés",

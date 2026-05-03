@@ -162,6 +162,35 @@ public class SetupService {
     }
 
     /**
+     * Overwrites the persisted CORS origins with the value currently provided
+     * by the {@code ALLOWED_ORIGINS} env var (mapped onto
+     * {@code app.cors.allowed-origins}). This is the escape hatch for
+     * operators who switched their public URL after the setup wizard ran:
+     * normally DB > env, but here the operator explicitly asks env to win
+     * once. The wizard's other CORS rules (no wildcards, non-empty) still
+     * apply.
+     */
+    @Transactional
+    public void reloadCorsFromEnv(String envOrigins) {
+        if (envOrigins == null || envOrigins.isBlank()) {
+            throw new IllegalArgumentException("ALLOWED_ORIGINS env var is empty — set it before reloading.");
+        }
+        List<String> parsed = java.util.Arrays.stream(envOrigins.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
+        if (parsed.isEmpty()) {
+            throw new IllegalArgumentException("ALLOWED_ORIGINS env var contains no usable origins.");
+        }
+        if (parsed.stream().anyMatch(o -> o.contains("*"))) {
+            throw new IllegalArgumentException("Wildcard origins are not allowed with credentialed CORS.");
+        }
+        String joined = String.join(",", parsed);
+        upsert(KEY_CORS_ALLOWED_ORIGINS, joined);
+        log.info("setup.security.cors-reloaded-from-env origins={}", parsed.size());
+    }
+
+    /**
      * Persists Enable Banking connection credentials (app-id, key-id,
      * redirect URI). The private key is handled separately by
      * {@code EnableBankingKeyPairService} since it lives on the filesystem,

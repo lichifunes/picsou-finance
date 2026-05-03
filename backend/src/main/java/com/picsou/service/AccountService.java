@@ -126,7 +126,8 @@ public class AccountService {
     @Transactional
     public void delete(Long id, Long memberId) {
         Account account = getOrThrow(id, memberId);
-        accountRepository.delete(account);
+        account.setDeletedAt(Instant.now());
+        accountRepository.save(account);
     }
 
     @Transactional

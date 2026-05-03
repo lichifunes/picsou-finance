@@ -31,6 +31,14 @@ export function useUpdateEnableBanking() {
   })
 }
 
+export function useReloadCorsFromEnv() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => adminApi.reloadCorsFromEnv(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.settings() }),
+  })
+}
+
 export function useToggleIntegration() {
   const queryClient = useQueryClient()
   return useMutation({

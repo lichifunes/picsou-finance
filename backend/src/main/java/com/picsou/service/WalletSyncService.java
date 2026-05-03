@@ -19,7 +19,10 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -72,14 +75,29 @@ public class WalletSyncService {
         WalletPort adapter = findAdapter(wallet.getChain());
 
         try {
-            WalletBalance balance = adapter.fetchBalance(wallet.getAddress());
+            List<WalletBalance> balances = adapter.fetchBalances(wallet.getAddress());
+            if (balances == null || balances.isEmpty()) {
+                throw new SyncException("Adapter returned no balances for " + wallet.getChain());
+            }
 
-            BigDecimal priceEur = priceService.getPriceEur(balance.nativeSymbol());
+            // The chain's native asset (SOL, ETH, BTC) is the first entry by
+            // contract — keep it as the account's display ticker.
+            String nativeSymbol = balances.get(0).symbol();
+
+            Set<String> tickers = balances.stream()
+                .map(b -> b.symbol().toUpperCase())
+                .collect(Collectors.toSet());
+            Map<String, BigDecimal> prices = priceService.refreshPrices(tickers);
+
             BigDecimal balanceEur = BigDecimal.ZERO;
-            if (priceEur != null) {
-                balanceEur = balance.nativeAmount().multiply(priceEur).setScale(2, RoundingMode.HALF_UP);
-            } else {
-                log.warn("No EUR price for {} -- wallet balance will be 0", balance.nativeSymbol());
+            for (WalletBalance b : balances) {
+                BigDecimal priceEur = prices.get(b.symbol().toUpperCase());
+                if (priceEur != null) {
+                    balanceEur = balanceEur.add(
+                        b.amount().multiply(priceEur).setScale(2, RoundingMode.HALF_UP));
+                } else {
+                    log.warn("No EUR price for {} -- skipping in wallet total", b.symbol());
+                }
             }
 
             wallet.setLastSyncedAt(Instant.now());
@@ -90,16 +108,17 @@ public class WalletSyncService {
                 ? wallet.getLabel()
                 : wallet.getChain().name() + " Wallet";
 
-            // Resolve or create the account (without snapshot yet)
-            Account account = resolveAccount(externalId, name, balanceEur, balance.nativeSymbol(), memberId);
+            Account account = resolveAccount(externalId, name, balanceEur, nativeSymbol, memberId);
 
-            // Persist holding before snapshot (so calculateInvestedAmount finds it)
-            if (priceEur != null) {
-                accountService.upsertHolding(account.getId(), memberId, balance.nativeSymbol().toUpperCase(),
-                    balance.nativeSymbol().toUpperCase(), balance.nativeAmount(), priceEur);
+            for (WalletBalance b : balances) {
+                BigDecimal priceEur = prices.get(b.symbol().toUpperCase());
+                if (priceEur != null && b.amount().signum() > 0) {
+                    accountService.upsertHolding(account.getId(), memberId,
+                        b.symbol().toUpperCase(), b.symbol().toUpperCase(),
+                        b.amount(), priceEur);
+                }
             }
 
-            // Now create snapshot with correct invested amount from holding
             accountService.upsertSnapshot(account, balanceEur, LocalDate.now());
 
             return accountService.toResponse(account);

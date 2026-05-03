@@ -11,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.util.List;
 
 /**
  * Bitcoin wallet adapter using the Blockstream Esplora public API.
@@ -47,11 +48,11 @@ public class BitcoinWalletAdapter implements WalletPort {
     }
 
     @Override
-    public WalletBalance fetchBalance(String address) {
-        if (BitcoinKeyUtils.isExtendedKey(address)) {
-            return fetchExtendedKeyBalance(address);
-        }
-        return fetchSingleAddressBalance(address);
+    public List<WalletBalance> fetchBalances(String address) {
+        WalletBalance btc = BitcoinKeyUtils.isExtendedKey(address)
+            ? fetchExtendedKeyBalance(address)
+            : fetchSingleAddressBalance(address);
+        return List.of(btc);
     }
 
     // ─── Single address ───────────────────────────────────────────────────────

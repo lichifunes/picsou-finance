@@ -25,8 +25,8 @@ interface HelloGreetingProps {
  */
 export function HelloGreeting({
   onFinish,
-  dwellMs = 800,
-  transitionMs = 400,
+  dwellMs = 400,
+  transitionMs = 250,
 }: HelloGreetingProps) {
   const { t } = useTranslation()
   const greetings = t('setup.greetings', { returnObjects: true }) as string[]
@@ -79,9 +79,14 @@ export function HelloGreeting({
     const onClick = () => skip()
     window.addEventListener('keydown', onAnyKey)
     window.addEventListener('click', onClick)
+    // Watchdog: if the cycle hasn't finished after 5 s (i18n stuck, font failed,
+    // animation paused by the browser, etc.), force-finish so the wizard can
+    // never be visually empty for an undefined amount of time.
+    const watchdog = window.setTimeout(skip, 5000)
     return () => {
       window.removeEventListener('keydown', onAnyKey)
       window.removeEventListener('click', onClick)
+      window.clearTimeout(watchdog)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

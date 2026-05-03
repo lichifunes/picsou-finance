@@ -293,7 +293,8 @@
       "callbackCompleting": "Fetching accounts...",
       "callbackDone": "Accounts synced!",
       "callbackError": "Sync error",
-      "initiateError": "Connection failed"
+      "initiateError": "Connection failed",
+      "psd2ScopeNote": "Enable Banking only syncs current accounts (PSD2 limitation). For PEA, life insurance, savings: use Trade Republic, Boursobank, Finary, or add them manually."
     },
     "tr": {
       "title": "Trade Republic",
@@ -510,7 +511,11 @@
       "secureCookiesHint": "Enable only if Picsou is served over HTTPS",
       "save": "Save",
       "saving": "Saving...",
-      "saved": "Saved"
+      "saved": "Saved",
+      "reloadFromEnv": "Reload from environment",
+      "reloadFromEnvLoading": "Reloading...",
+      "reloadFromEnvHint": "Overwrites the list above with the current value of the ALLOWED_ORIGINS environment variable. Useful when you've changed the public URL after initial setup.",
+      "reloadFromEnvDone": "Origins reloaded from the environment."
     },
     "enableBanking": {
       "title": "Enable Banking",
@@ -606,7 +611,9 @@
       "title": "Welcome to Picsou.",
       "subtitle": "Let's set you up in about 2 minutes.",
       "cta": "Get started",
-      "language": "Language"
+      "language": "Language",
+      "skip": "Skip the animation",
+      "skipAria": "Skip the welcome animation"
     },
     "admin": {
       "surtitle": "YOUR ACCOUNT",
@@ -695,13 +702,17 @@
         "signupOpened": "Done creating your account?",
         "continueAfterSignup": "Yes, continue",
         "psd2Popover": "What is PSD2?",
-        "psd2Body": "PSD2 is the EU regulation that lets licensed aggregators read your bank account with your consent. Your credentials never leave your bank."
+        "psd2Body": "PSD2 is the EU regulation that lets licensed aggregators read your bank account with your consent. Your credentials never leave your bank.",
+        "prodWarningTitle": "Create a PRODUCTION application",
+        "prodWarningBody": "In your Enable Banking dashboard, make sure to choose \"Production\" when creating the application — the SANDBOX only gives you access to fake test banks, not your real ones.",
+        "psd2ScopeNote": "Enable Banking only syncs current accounts (PSD2 limitation). For PEA, life insurance, savings accounts, etc.: use the dedicated integrations (Trade Republic, Boursobank, Finary) or add them manually."
       },
       "creds": {
         "title": "Paste your IDs",
         "body": "In your Enable Banking dashboard, create an application named \"Picsou\", then copy the two values it gives you. Often the Application ID and Key ID are identical — that's expected, just paste the same value into both fields.",
         "applicationId": "Application ID",
-        "keyId": "Key ID"
+        "keyId": "Key ID",
+        "prodAcknowledge": "I confirm my Enable Banking application is in PRODUCTION mode (not SANDBOX)."
       },
       "keypair": {
         "modeGenerate": "Generate a key pair",

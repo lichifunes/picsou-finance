@@ -9,8 +9,10 @@ import com.picsou.dto.MfaDtos;
 import com.picsou.model.AppUser;
 import com.picsou.model.PersistentSession;
 import com.picsou.repository.AppUserRepository;
+import com.picsou.model.UserRole;
 import com.picsou.service.MfaService;
 import com.picsou.service.PersistentSessionService;
+import com.picsou.service.SetupAuditService;
 import io.github.bucket4j.Bucket;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -44,6 +46,7 @@ public class AuthController {
     private final AuthCookieWriter cookieWriter;
     private final MfaService mfaService;
     private final PersistentSessionService persistentSessionService;
+    private final SetupAuditService auditService;
 
     public AuthController(
         AppUserRepository userRepository,
@@ -53,7 +56,8 @@ public class AuthController {
         @org.springframework.beans.factory.annotation.Qualifier("mfaVerifyBuckets") Map<String, Bucket> mfaVerifyBuckets,
         AuthCookieWriter cookieWriter,
         MfaService mfaService,
-        PersistentSessionService persistentSessionService
+        PersistentSessionService persistentSessionService,
+        SetupAuditService auditService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -63,6 +67,7 @@ public class AuthController {
         this.cookieWriter = cookieWriter;
         this.mfaService = mfaService;
         this.persistentSessionService = persistentSessionService;
+        this.auditService = auditService;
     }
 
     @PostMapping("/login")
@@ -277,7 +282,8 @@ public class AuthController {
     @PostMapping("/activate/{token}")
     public ResponseEntity<?> activate(
         @PathVariable String token,
-        @Valid @RequestBody ActivationRequest req
+        @Valid @RequestBody ActivationRequest req,
+        HttpServletRequest httpReq
     ) {
         AppUser user = userRepository.findByActivationToken(token)
             .orElseThrow(() -> new BadCredentialsException("Invalid activation token"));
@@ -299,6 +305,10 @@ public class AuthController {
         user.setActivated(true);
         user.setAcknowledgedWarning(true);
         userRepository.save(user);
+
+        if (user.getRole() == UserRole.ADMIN) {
+            auditService.record("admin.recovery.completed", user.getUsername(), httpReq, null);
+        }
 
         return ResponseEntity.ok(Map.of("message", "Account activated successfully"));
     }

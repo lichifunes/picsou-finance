@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Info, Landmark, Lock } from 'lucide-react'
+import { AlertTriangle, Info, Landmark, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EBSubstepShell } from './EBSubstepShell'
 
@@ -59,6 +59,25 @@ export function EBStep1Explain({ onNext }: Props) {
             {t('setup.enablebanking.explain.psd2Body')}
           </div>
         )}
+
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-left">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="space-y-1 text-xs sm:text-sm">
+            <p className="font-medium text-amber-900 dark:text-amber-100">
+              {t('setup.enablebanking.explain.prodWarningTitle')}
+            </p>
+            <p className="text-amber-900/80 dark:text-amber-100/80">
+              {t('setup.enablebanking.explain.prodWarningBody')}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/40 p-4 text-left">
+          <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            {t('setup.enablebanking.explain.psd2ScopeNote')}
+          </p>
+        </div>
 
         {!waitingOnSignup ? (
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">

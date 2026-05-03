@@ -106,7 +106,7 @@ class SetupServiceTest {
     void seedAdmin_isIdempotent_whenUserAlreadyExists() {
         AppUser existing = AppUser.builder().username("admin").build();
         when(userRepository.existsByUsername("admin")).thenReturn(true);
-        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(existing));
+        when(userRepository.findByUsernameWithMember("admin")).thenReturn(Optional.of(existing));
 
         AppUser result = setupService.seedAdmin("admin", "$2a$12$any", "Alice", null);
 

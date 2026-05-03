@@ -248,6 +248,9 @@ export function BankSyncTab() {
 
         {!connectionsLoading && connections && connections.length > 0 && (
           <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              {t('sync.banks.psd2ScopeNote')}
+            </p>
             {connections.map(conn => (
               <Card key={conn.id} size="sm">
                 <CardContent className="flex items-center justify-between py-2">

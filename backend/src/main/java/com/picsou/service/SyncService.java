@@ -104,7 +104,19 @@ public class SyncService {
 
         List<AccountResponse> responses = accountDataList.stream()
             .map(data -> upsertAccount(data, requisition.getInstitutionName(), member))
+            .flatMap(Optional::stream)
             .toList();
+
+        // If the bank hasn't finished linking accounts yet, leave the
+        // requisition retryable (status=FAILED so the UI shows the retry
+        // button). The session id is preserved, so retrySync() just refetches
+        // without going back through OAuth.
+        if (accountDataList.isEmpty()) {
+            requisition.setStatus(RequisitionStatus.FAILED);
+            requisitionRepository.save(requisition);
+            log.info("Enable Banking session {} not yet populated — marking retryable", sessionId);
+            return responses;
+        }
 
         requisition.setStatus(RequisitionStatus.LINKED);
         requisition.setLastSyncedAt(Instant.now());
@@ -147,6 +159,7 @@ public class SyncService {
 
         List<AccountResponse> responses = accountDataList.stream()
             .map(data -> upsertAccount(data, req.getInstitutionName(), member))
+            .flatMap(Optional::stream)
             .toList();
 
         req.setStatus(RequisitionStatus.LINKED);
@@ -196,6 +209,7 @@ public class SyncService {
         List<BankConnectorPort.AccountData> accountDataList = bankConnector.fetchBalances(req.getRequisitionId());
         List<AccountResponse> responses = accountDataList.stream()
             .map(data -> upsertAccount(data, req.getInstitutionName(), member))
+            .flatMap(Optional::stream)
             .toList();
         req.setLastSyncedAt(Instant.now());
         requisitionRepository.save(req);
@@ -205,8 +219,21 @@ public class SyncService {
 
     // --- Private ---
 
-    private AccountResponse upsertAccount(BankConnectorPort.AccountData data, String provider, FamilyMember member) {
-        Optional<Account> existing = accountRepository.findByExternalAccountIdAndMemberId(data.externalId(), member.getId());
+    /**
+     * Returns {@link Optional#empty()} when the matching account was soft-deleted
+     * by the user — we must not resurrect it on the next sync. The bank may keep
+     * returning the same external id forever; that's not consent to bring it back.
+     */
+    private Optional<AccountResponse> upsertAccount(BankConnectorPort.AccountData data, String provider, FamilyMember member) {
+        Optional<Account> existing = accountRepository
+            .findByExternalAccountIdAndMemberId(data.externalId(), member.getId());
+
+        if (existing.isEmpty() &&
+            accountRepository.existsSoftDeletedByExternalAccountIdAndMemberId(data.externalId(), member.getId())) {
+            log.info("Skipping resurrection of soft-deleted account externalId={} member={}",
+                data.externalId(), member.getId());
+            return Optional.empty();
+        }
 
         Account account;
         if (existing.isPresent()) {
@@ -231,7 +258,7 @@ public class SyncService {
         account = accountRepository.save(account);
         accountService.upsertSnapshot(account, data.balance(), LocalDate.now());
 
-        return accountService.toResponse(account);
+        return Optional.of(accountService.toResponse(account));
     }
 
     public record InitiateResponse(String requisitionId, String authLink) {}

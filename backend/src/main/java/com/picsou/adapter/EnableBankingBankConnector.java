@@ -145,12 +145,21 @@ public class EnableBankingBankConnector implements BankConnectorPort {
     }
 
     /**
-     * Polls GET /sessions/{id} until accounts are populated.
-     * Enable Banking links accounts asynchronously after OAuth — typically takes a few seconds.
+     * Polls GET /sessions/{id} until accounts are populated. Enable Banking
+     * links accounts asynchronously after OAuth — usually a few seconds, but
+     * occasionally longer.
+     *
+     * <p>Total worst-case wall time is bounded to ~4.5 s (3 attempts × 1.5 s)
+     * so the request stays well under any reverse-proxy {@code proxy_read_timeout}.
+     * If the session still hasn't been populated by then, we return an empty
+     * list rather than throw: the caller marks the requisition LINKED so the
+     * user (and the scheduler) can retry from the UI without losing the
+     * session id. Throwing here turned the legitimate "still linking" case
+     * into a 502 in production.
      */
     private List<String> fetchSessionAccountsWithRetry(String sessionId) {
-        int maxAttempts = 8;
-        int delayMs = 3_000;
+        int maxAttempts = 3;
+        int delayMs = 1_500;
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             SessionResponse session = webClient.get()
@@ -169,20 +178,18 @@ public class EnableBankingBankConnector implements BankConnectorPort {
                 return session.accounts();
             }
 
-            log.info("Session {} has no accounts yet (attempt {}/{}, status={}), retrying in {}s…",
+            log.info("Session {} has no accounts yet (attempt {}/{}, status={})",
                 sessionId, attempt, maxAttempts,
-                session != null ? session.status() : "null",
-                delayMs / 1000);
+                session != null ? session.status() : "null");
 
             if (attempt < maxAttempts) {
                 try { Thread.sleep(delayMs); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
             }
         }
 
-        throw new SyncException(
-            "Session " + sessionId + " has no linked accounts after " + maxAttempts + " attempts. " +
-            "The bank authorization may not have completed — please retry the sync."
-        );
+        log.warn("Session {} still has no accounts after {} attempts — returning empty so the caller can retry asynchronously",
+            sessionId, maxAttempts);
+        return List.of();
     }
 
     @Override
