@@ -127,21 +127,27 @@ function filterByRange(data: NetWorthChartProps['data'], range: TimeRange) {
   return data.filter(p => new Date(p.date) >= from)
 }
 
-function getXAxisFormatter(range: TimeRange, locale: string) {
-  switch (range) {
-    case '24H':
-      return (value: string) => {
-        const d = new Date(value)
-        return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false })
-      }
-    case '7D':
-      return (value: string) => new Date(value).toLocaleDateString(locale, { day: 'numeric', month: 'short' })
-    case '1M':
-    case '3M':
-      return (value: string) => new Date(value).toLocaleDateString(locale, { day: 'numeric', month: 'short' })
-    default:
-      return (value: string) => new Date(value).toLocaleDateString(locale, { month: 'short' })
+// Span-aware formatter -- the X axis is now a time scale fed numeric
+// timestamps, so we pick the format based on the actual visible span rather
+// than the (potentially-misleading) range button. Goals can stretch a short
+// "ALL" view across many months once the projection to deadline is drawn,
+// for example.
+function getXAxisFormatter(range: TimeRange, locale: string, spanMs: number) {
+  if (range === '24H') {
+    return (value: string | number) =>
+      new Date(value).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false })
   }
+  const day = 86_400_000
+  if (spanMs <= 60 * day) {
+    return (value: string | number) =>
+      new Date(value).toLocaleDateString(locale, { day: 'numeric', month: 'short' })
+  }
+  if (spanMs <= 2 * 365 * day) {
+    return (value: string | number) =>
+      new Date(value).toLocaleDateString(locale, { month: 'short' })
+  }
+  return (value: string | number) =>
+    new Date(value).toLocaleDateString(locale, { month: 'short', year: '2-digit' })
 }
 
 export function NetWorthChart({ data, intraday = [], range, onRangeChange, showInvested = true, target }: NetWorthChartProps) {
@@ -170,10 +176,15 @@ export function NetWorthChart({ data, intraday = [], range, onRangeChange, showI
       ? intraday.map(p => ({
           date: p.timestamp,
           timestamp: p.timestamp,
+          dateMs: new Date(p.timestamp).getTime(),
           total: p.total as number | null,
           invested: p.invested,
         }))
-      : filterByRange(data, range).map(p => ({ ...p, total: p.total as number | null }))
+      : filterByRange(data, range).map(p => ({
+          ...p,
+          dateMs: new Date(p.date).getTime(),
+          total: p.total as number | null,
+        }))
 
     // When a target is set, crop history on the left to the trajectory start
     // (goal createdAt). Balance changes before the goal existed aren't
@@ -182,7 +193,7 @@ export function NetWorthChart({ data, intraday = [], range, onRangeChange, showI
       if (!target) return base
       const startMs = new Date(target.startDate).getTime()
       if (!Number.isFinite(startMs)) return base
-      return base.filter(p => new Date(p.date).getTime() >= startMs)
+      return base.filter(p => p.dateMs >= startMs)
     })()
 
     // Decorate each visible point with the interpolated target value.
@@ -192,14 +203,17 @@ export function NetWorthChart({ data, intraday = [], range, onRangeChange, showI
 
     // On the ALL range, project the X axis up to the deadline so the user sees
     // the full trajectory. The synthetic point carries only `target` -- the
-    // actual line stops where real data ends.
+    // actual line stops where real data ends. With the time-scale axis, this
+    // point is placed at its real date so the projection occupies the right
+    // fraction of the chart instead of being squished into the last category.
     if (target && range === 'ALL' && targetAt) {
       const last = decorated[decorated.length - 1]
       const deadlineMs = new Date(target.endDate).getTime()
-      const lastMs = last ? new Date(last.date).getTime() : -Infinity
+      const lastMs = last?.dateMs ?? -Infinity
       if (Number.isFinite(deadlineMs) && deadlineMs > lastMs) {
         decorated.push({
           date: target.endDate,
+          dateMs: deadlineMs,
           total: null,
           invested: undefined,
           target: target.endValue,
@@ -209,11 +223,10 @@ export function NetWorthChart({ data, intraday = [], range, onRangeChange, showI
     return decorated
   }, [data, intraday, range, is24H, target, targetAt])
 
-  const xInterval = useMemo(() => {
-    const len = filteredData.length
-    if (len <= 8) return 0
-    return Math.floor(len / 6)
-  }, [filteredData.length])
+  const xDomain = useMemo<[number, number] | undefined>(() => {
+    if (filteredData.length === 0) return undefined
+    return [filteredData[0].dateMs, filteredData[filteredData.length - 1].dateMs]
+  }, [filteredData])
 
   const yTickFormatter = useMemo(() => {
     const totals: number[] = []
@@ -254,7 +267,10 @@ export function NetWorthChart({ data, intraday = [], range, onRangeChange, showI
     currency: t('common.currency'),
   }), [t, target?.label])
 
-  const xAxisFormatter = useMemo(() => getXAxisFormatter(range, locale), [range, locale])
+  const xAxisFormatter = useMemo(() => {
+    const spanMs = xDomain ? xDomain[1] - xDomain[0] : 0
+    return getXAxisFormatter(range, locale, spanMs)
+  }, [range, locale, xDomain])
 
   const isEmpty24H = is24H && filteredData.length === 0
 
@@ -281,12 +297,14 @@ export function NetWorthChart({ data, intraday = [], range, onRangeChange, showI
         </defs>
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis
-          dataKey={is24H ? 'timestamp' : 'date'}
+          type="number"
+          dataKey="dateMs"
+          domain={xDomain ?? ['dataMin', 'dataMax']}
+          scale="time"
           tickLine={false}
           axisLine={false}
           tickMargin={8}
           tickFormatter={xAxisFormatter}
-          interval={xInterval}
         />
         <YAxis
           tickLine={false}
