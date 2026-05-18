@@ -139,4 +139,53 @@ class GoalServiceTest {
 
         assertThat(progress.isOnTrack()).isFalse();
     }
+
+    @Test
+    void isOnTrack_true_whenManualContributionCoversShortfall() {
+        // Same setup as the "behind" test but user declares 4000€ manual contribution
+        // for each of the 3 past months → effective matches objective → on track.
+        Account account = Account.builder()
+            .id(1L).name("Livret").type(AccountType.SAVINGS)
+            .currency("EUR").currentBalance(BigDecimal.ZERO)
+            .color("#000").build();
+
+        java.time.Instant created = LocalDate.now().minusMonths(3).withDayOfMonth(1)
+            .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+        Goal goal = Goal.builder()
+            .id(1L).name("Test").targetAmount(new BigDecimal("12000"))
+            .deadline(LocalDate.now().plusMonths(3))
+            .accounts(List.of(account))
+            .build();
+        org.springframework.test.util.ReflectionTestUtils.setField(goal, "createdAt", created);
+
+        when(accountService.toResponse(account)).thenReturn(
+            new com.picsou.dto.AccountResponse(
+                1L, "Livret", AccountType.SAVINGS, null, "EUR",
+                BigDecimal.ZERO, BigDecimal.ZERO,
+                null, true, "#000", null, null, null, null
+            )
+        );
+        when(accountService.liveBalanceEur(account)).thenReturn(BigDecimal.ZERO);
+        when(snapshotRepository.findRecentByAccountId(
+            org.mockito.ArgumentMatchers.eq(1L),
+            org.mockito.ArgumentMatchers.any()
+        )).thenReturn(List.of());
+
+        when(overrideRepository.findByGoalId(1L)).thenReturn(List.of());
+
+        java.time.YearMonth now = java.time.YearMonth.now();
+        java.util.List<com.picsou.model.GoalManualContribution> manuals = new java.util.ArrayList<>();
+        for (int i = 1; i <= 3; i++) {
+            com.picsou.model.GoalManualContribution m = new com.picsou.model.GoalManualContribution();
+            m.setGoal(goal);
+            m.setYearMonth(now.minusMonths(i).toString());
+            m.setAmount(new BigDecimal("4000"));
+            manuals.add(m);
+        }
+        when(manualContributionRepository.findByGoalId(1L)).thenReturn(manuals);
+
+        GoalProgressResponse progress = goalService.toProgressResponse(goal);
+
+        assertThat(progress.isOnTrack()).isTrue();
+    }
 }
