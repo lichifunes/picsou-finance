@@ -3,11 +3,14 @@ package com.picsou.service;
 import com.picsou.model.AppUser;
 import com.picsou.model.FamilyMember;
 import com.picsou.model.UserRole;
+import com.picsou.repository.AppUserRepository;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Request-scoped helper to access the current authenticated user and their family member.
@@ -15,6 +18,12 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  */
 @Component
 public class UserContext {
+
+    private final AppUserRepository userRepository;
+
+    public UserContext(AppUserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
 
     public AppUser currentUser() {
         return (AppUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -36,6 +45,11 @@ public class UserContext {
     /**
      * If the current user is an admin and a memberId query param is present, return it.
      * Otherwise return null (use own member).
+     *
+     * <p>Privacy boundary: an admin may impersonate a member only while that member
+     * has not taken ownership of their own login. Once a member is activated (has set
+     * their own password), their data is private — the override is refused with 403.
+     * Overriding to the admin's own member id is always allowed (no-op).
      */
     private Long getMemberIdOverride() {
         if (!isAdmin()) return null;
@@ -45,10 +59,20 @@ public class UserContext {
         HttpServletRequest request = attrs.getRequest();
         String param = request.getParameter("memberId");
         if (param == null || param.isBlank()) return null;
+        Long memberId;
         try {
-            return Long.parseLong(param);
+            memberId = Long.parseLong(param);
         } catch (NumberFormatException e) {
             return null;
         }
+        if (memberId.equals(currentMember().getId())) return memberId;
+        boolean independent = userRepository.findByMemberId(memberId)
+            .map(AppUser::isActivated)
+            .orElse(false);
+        if (independent) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN, "Cannot access an independent member's data");
+        }
+        return memberId;
     }
 }

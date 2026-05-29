@@ -26,6 +26,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useAppStore } from '@/stores/app-store'
 import { useProfileStore } from '@/stores/profile-store'
 import { useFamilyMembers } from '@/features/family/hooks'
+import { selectSwitchableMembers } from '@/features/family/members'
 import { useLogout } from '@/features/auth/hooks'
 import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
@@ -99,7 +100,8 @@ export function AppSidebar() {
   }
 
   const isAdmin = user?.role === 'ADMIN'
-  const managedMembers = familyMembers?.filter((m) => m.managed) ?? []
+  // Independent members (own activated password) are private — not switchable by the admin.
+  const managedMembers = selectSwitchableMembers(familyMembers ?? [])
 
   // Resolve active profile display (may differ from logged-in user)
   const activeManaged = activeMemberId

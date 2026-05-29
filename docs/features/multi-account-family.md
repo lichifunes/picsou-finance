@@ -1,6 +1,6 @@
 # Feature: Multi-account family system
 
-> Last updated: 2026-04-22
+> Last updated: 2026-05-29
 
 ## Context
 
@@ -51,6 +51,29 @@ The `FamilyViewService` aggregates shared data for the family dashboard.
 
 Once activated, a managed member becomes **independent** (`isManaged=true && hasLogin && activated`). The admin can no longer delete their profile or regenerate their activation link. `FamilyService.deleteMember()` enforces this with a 403 guard.
 
+### Admin access boundary (independent members are private)
+
+Activation also revokes the admin's ability to **impersonate** the member. As soon
+as a member has set their own password (`activated=true`), the admin can no longer
+switch into their profile and browse their data:
+
+- **Backend (authoritative):** `UserContext.getMemberIdOverride()` honors `?memberId=X`
+  only when X is the admin's own member id, or when member X has no activated login
+  (a true managed profile: child / no-login / login created but not yet activated).
+  Overriding to an **activated** member throws `403 "Cannot access an independent
+  member's data"`. This is the single choke point through which every controller
+  scopes data (`currentMemberId()`), so all endpoints are covered at once.
+- **Frontend (UX):** the sidebar profile switcher is built from
+  `selectSwitchableMembers()` (`features/family/members.ts` = `managed && !activated`),
+  so independent members **disappear** from the switcher. They remain listed in Family
+  settings and on the family dashboard.
+
+This is an automatic confidentiality guarantee, not a toggle. **Voluntary sharing is
+unaffected** — anything an independent member chooses to share via `SharingSettings`
+still reaches the admin through `FamilyViewService` (family dashboard). The admin's
+password-reset capability also stays intact and does not re-open access: a reset keeps
+`activated=true` (it only issues a fresh token), so the boundary holds.
+
 ### Password reset by an admin
 
 `POST /api/family/members/{id}/reset-password` (admin-only) issues a fresh
@@ -92,6 +115,7 @@ Step 3 is critical: without it, the next request would fail because the old JWT 
 - `stores/profile-store.ts` — `activeMemberId`, `viewMode` (own/managed/family)
 - `features/family/hooks.ts` — TanStack Query hooks for members, sharing, dashboard
 - `features/family/api.ts` — API functions
+- `features/family/members.ts` — `selectSwitchableMembers()` (admin switcher excludes independent members)
 - `components/layout/AppSidebar.tsx` — profile switcher in dropdown
 - `lib/api-client.ts` — Axios interceptor adds `?memberId=X` when managed profile active
 - `pages/settings/FamilySettingsPage.tsx` — member management + sharing config UI
@@ -136,6 +160,7 @@ Admin clicks managed profile in sidebar dropdown
 - **Username change requires token rotation**: `PATCH /api/auth/username` must re-issue the JWT cookies. If you only update the DB row, the existing tokens still carry the old username — the filter can't find the user → immediate 401 on next request.
 - **`isIndependent` in frontend must include `managed`**: The display logic for a member's status in `FamilySettingsPage` uses `isIndependent = member.managed && member.hasLogin && member.activated`. Without `managed`, admin users (who are also `hasLogin && activated`) would show "Compte indépendant" instead of "Administrateur".
 - **Cannot delete an activated member**: `FamilyService.deleteMember()` throws 403 if the target member has an activated `AppUser`. The UI hides the delete button for `isIndependent` members, but the backend is the authoritative guard.
+- **Cannot impersonate an activated member**: `UserContext.getMemberIdOverride()` throws 403 when an admin's `?memberId=X` targets an activated (independent) member other than themselves. The sidebar hides them too (`selectSwitchableMembers`), but the backend is the authoritative guard — never rely on the frontend filter alone.
 - **Yahoo Finance null closes**: Yahoo can return `null` in historical price arrays for non-trading days. Must check `close == null` before unboxing to avoid NPE.
 - **Profile switch cache**: TanStack Query cache is global. Without `invalidateQueries()` on switch, the old member's data persists visually.
 
