@@ -3,7 +3,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/shared/NumericInput'
 import { Label } from '@/components/ui/label'
+import { parseAmount } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 import type { AccountType, TransactionRequest } from '@/types/api'
 import { accountsApi } from '@/features/accounts/api'
@@ -84,7 +86,7 @@ export function AddTransactionModal({ open, onOpenChange, accountId, accountType
   }, [open])
 
   const total = quantity && pricePerUnit
-    ? (parseFloat(quantity) * parseFloat(pricePerUnit)).toFixed(2)
+    ? (parseAmount(quantity) * parseAmount(pricePerUnit)).toFixed(2)
     : '—'
 
   async function handleSubmit(e: React.FormEvent) {
@@ -93,8 +95,8 @@ export function AddTransactionModal({ open, onOpenChange, accountId, accountType
     let data: TransactionRequest
 
     if (isInvestment) {
-      const qty = parseFloat(quantity)
-      const price = parseFloat(pricePerUnit)
+      const qty = parseAmount(quantity)
+      const price = parseAmount(pricePerUnit)
       const amount = investType === 'BUY' ? -(qty * price) : (qty * price)
       data = {
         date,
@@ -106,7 +108,7 @@ export function AddTransactionModal({ open, onOpenChange, accountId, accountType
         pricePerUnit: price,
       }
     } else {
-      const raw = parseFloat(cashAmount)
+      const raw = parseAmount(cashAmount)
       const amount = txDirection === 'deposit' ? Math.abs(raw) : -Math.abs(raw)
       data = {
         date,
@@ -163,11 +165,11 @@ export function AddTransactionModal({ open, onOpenChange, accountId, accountType
               </div>
               <div className="space-y-1">
                 <Label>Quantité</Label>
-                <Input type="number" step="any" min="0" value={quantity} onChange={e => setQuantity(e.target.value)} required />
+                <NumericInput value={quantity} onChange={e => setQuantity(e.target.value)} required />
               </div>
               <div className="space-y-1">
                 <Label>Prix unitaire (€)</Label>
-                <Input type="number" step="any" min="0" value={pricePerUnit} onChange={e => setPricePerUnit(e.target.value)} required />
+                <NumericInput value={pricePerUnit} onChange={e => setPricePerUnit(e.target.value)} required />
               </div>
               <p className="text-sm text-muted-foreground">Total : {total} €</p>
             </>
@@ -198,7 +200,7 @@ export function AddTransactionModal({ open, onOpenChange, accountId, accountType
               </div>
               <div className="space-y-1">
                 <Label>Montant (€)</Label>
-                <Input type="number" step="0.01" min="0" value={cashAmount} onChange={e => setCashAmount(e.target.value)} required />
+                <NumericInput value={cashAmount} onChange={e => setCashAmount(e.target.value)} required />
               </div>
             </>
           )}

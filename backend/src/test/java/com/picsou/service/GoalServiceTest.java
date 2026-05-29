@@ -221,4 +221,82 @@ class GoalServiceTest {
 
         assertThat(progress.isOnTrack()).isTrue();
     }
+
+    // ─── Backfill history ───────────────────────────────────────────────────
+
+    private Goal backfillGoal(String historyStartMonth) {
+        java.time.Instant created = LocalDate.now().withDayOfMonth(1)
+            .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+        Goal goal = Goal.builder()
+            .id(1L).name("Backfill").targetAmount(new BigDecimal("1000"))
+            .deadline(LocalDate.now().plusMonths(2))
+            .accounts(List.of())
+            .historyStartMonth(historyStartMonth)
+            .build();
+        org.springframework.test.util.ReflectionTestUtils.setField(goal, "createdAt", created);
+        return goal;
+    }
+
+    @Test
+    void getMonthlyEntries_usesHistoryStartWhenEarlierThanCreatedAt() {
+        String historyStart = java.time.YearMonth.now().minusYears(1).toString();
+        Goal goal = backfillGoal(historyStart);
+        when(goalRepository.findByIdAndMemberId(1L, 1L)).thenReturn(java.util.Optional.of(goal));
+
+        var entries = goalService.getMonthlyEntries(1L, 1L);
+
+        assertThat(entries).isNotEmpty();
+        assertThat(entries.get(0).yearMonth()).isEqualTo(historyStart);
+        // No accounts and no manual/override data → backfilled month is empty.
+        assertThat(entries.get(0).effective()).isNull();
+    }
+
+    @Test
+    void getMonthlyEntries_ignoresHistoryStartWhenLaterThanCreatedAt() {
+        String historyStart = java.time.YearMonth.now().plusMonths(2).toString();
+        Goal goal = backfillGoal(historyStart);
+        when(goalRepository.findByIdAndMemberId(1L, 1L)).thenReturn(java.util.Optional.of(goal));
+
+        var entries = goalService.getMonthlyEntries(1L, 1L);
+
+        assertThat(entries.get(0).yearMonth()).isEqualTo(java.time.YearMonth.now().toString());
+    }
+
+    @Test
+    void extendHistory_decrementsByOneYearFromCreatedAt() {
+        Goal goal = backfillGoal(null);
+        when(goalRepository.findByIdAndMemberId(1L, 1L)).thenReturn(java.util.Optional.of(goal));
+        when(goalRepository.save(goal)).thenReturn(goal);
+
+        GoalProgressResponse progress = goalService.extendHistory(1L, 1L);
+
+        String expected = java.time.YearMonth.now().minusYears(1).toString();
+        assertThat(goal.getHistoryStartMonth()).isEqualTo(expected);
+        assertThat(progress.historyStartMonth()).isEqualTo(expected);
+    }
+
+    @Test
+    void extendHistory_decrementsFromExistingHistoryStart() {
+        String existing = java.time.YearMonth.now().minusYears(1).toString();
+        Goal goal = backfillGoal(existing);
+        when(goalRepository.findByIdAndMemberId(1L, 1L)).thenReturn(java.util.Optional.of(goal));
+        when(goalRepository.save(goal)).thenReturn(goal);
+
+        goalService.extendHistory(1L, 1L);
+
+        assertThat(goal.getHistoryStartMonth())
+            .isEqualTo(java.time.YearMonth.now().minusYears(2).toString());
+    }
+
+    @Test
+    void isOnTrack_unaffectedByHistoryStart() {
+        // History extended far back with no data → on-track stays anchored to createdAt
+        // (created this month → no past months → benefit of the doubt).
+        Goal goal = backfillGoal(java.time.YearMonth.now().minusYears(5).toString());
+        when(goalRepository.findByIdAndMemberId(1L, 1L)).thenReturn(java.util.Optional.of(goal));
+
+        GoalProgressResponse progress = goalService.findById(1L, 1L);
+
+        assertThat(progress.isOnTrack()).isTrue();
+    }
 }

@@ -1,19 +1,21 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useGoal, useGoalMonths, useSetMonthOverride, useDeleteMonthOverride, useSetManualContribution, useDeleteManualContribution } from '@/features/goals/hooks'
+import { useGoal, useGoalMonths, useSetMonthOverride, useDeleteMonthOverride, useSetManualContribution, useDeleteManualContribution, useExtendGoalHistory } from '@/features/goals/hooks'
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay'
+import { NumericInput } from '@/components/shared/NumericInput'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, Calendar, LayoutGrid, Clock, Loader2 } from 'lucide-react'
+import { cn, parseAmount } from '@/lib/utils'
 import type { GoalMonthEntry } from '@/types/api'
 
 // ---------------------------------------------------------------------------
@@ -317,8 +319,8 @@ function CalendarGridView({ months, selectedYm, onSelect }: {
 // Month Detail Panel
 // ---------------------------------------------------------------------------
 
-function MonthDetailPanel({ goalId, entry, onClose }: {
-  goalId: number; entry: GoalMonthEntry; onClose: () => void
+function MonthDetailPanel({ goalId, entry, onClose, className }: {
+  goalId: number; entry: GoalMonthEntry; onClose: () => void; className?: string
 }) {
   const { t } = useTranslation()
   const setOverride = useSetMonthOverride()
@@ -332,7 +334,7 @@ function MonthDetailPanel({ goalId, entry, onClose }: {
   const busy = setOverride.isPending || deleteOverride.isPending || setManual.isPending || deleteManual.isPending
 
   return (
-    <Card className="mt-4">
+    <Card className={className}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -351,7 +353,7 @@ function MonthDetailPanel({ goalId, entry, onClose }: {
       </CardHeader>
       <Separator />
       <CardContent className="pt-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           {/* Objective override */}
           <div className="space-y-3">
             <Label>{t('goals.monthlyObjective')}</Label>
@@ -359,10 +361,7 @@ function MonthDetailPanel({ goalId, entry, onClose }: {
               {t('goals.calculatedObjective')}: <CurrencyDisplay value={entry.objective} />
             </p>
             <div className="relative">
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
+              <NumericInput
                 value={overrideValue}
                 onChange={e => setOverrideValue(e.target.value)}
                 placeholder={String(entry.objective)}
@@ -382,7 +381,7 @@ function MonthDetailPanel({ goalId, entry, onClose }: {
                 size="sm"
                 disabled={busy}
                 onClick={() => {
-                  const amount = parseFloat(overrideValue)
+                  const amount = parseAmount(overrideValue)
                   if (isNaN(amount) || amount < 0) return
                   setOverride.mutate({ id: goalId, ym: entry.yearMonth, amount })
                 }}
@@ -410,10 +409,7 @@ function MonthDetailPanel({ goalId, entry, onClose }: {
               {t('goals.fromAccounts')}: {entry.actual != null ? <CurrencyDisplay value={entry.actual} /> : t('goals.noData')}
             </p>
             <div className="relative">
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
+              <NumericInput
                 value={manualValue}
                 onChange={e => setManualValue(e.target.value)}
                 placeholder={entry.actual?.toString() ?? ''}
@@ -435,7 +431,7 @@ function MonthDetailPanel({ goalId, entry, onClose }: {
                 size="sm"
                 disabled={busy}
                 onClick={() => {
-                  const amount = parseFloat(manualValue)
+                  const amount = parseAmount(manualValue)
                   if (isNaN(amount) || amount < 0) return
                   setManual.mutate({ id: goalId, ym: entry.yearMonth, amount })
                 }}
@@ -473,11 +469,29 @@ export function GoalCalendarPage() {
 
   const { data: goal, isLoading: goalLoading, error: goalError } = useGoal(goalId)
   const { data: months, isLoading: monthsLoading } = useGoalMonths(goalId)
+  const extendHistory = useExtendGoalHistory()
 
   const [viewMode, setViewMode] = useState<'grid' | 'timeline' | 'calendar'>('grid')
   const [selectedYm, setSelectedYm] = useState<string | null>(null)
 
+  // Track the `lg` breakpoint so the bottom sheet only opens on mobile/tablet —
+  // on desktop the sticky side panel already shows the selected month.
+  const [isDesktop, setIsDesktop] = useState(false)
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 1024px)')
+    const onChange = () => setIsDesktop(mql.matches)
+    onChange()
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [])
+
   const selectedEntry = selectedYm ? (months ?? []).find(e => e.yearMonth === selectedYm) ?? null : null
+
+  // The earliest rendered year drives the "+ Add <year>" backfill button.
+  const earliestYear = (months ?? []).length
+    ? Math.min(...(months ?? []).map(e => parseInt(e.yearMonth.split('-')[0])))
+    : new Date().getFullYear()
+  const yearToAdd = earliestYear - 1
 
   if (goalLoading || monthsLoading) {
     return (
@@ -559,25 +573,71 @@ export function GoalCalendarPage() {
         </TabsList>
       </Tabs>
 
-      {/* Active view */}
-      {viewMode === 'grid' && (
-        <YearGridView months={months ?? []} selectedYm={selectedYm} onSelect={setSelectedYm} />
-      )}
-      {viewMode === 'timeline' && (
-        <TimelineView months={months ?? []} selectedYm={selectedYm} onSelect={setSelectedYm} />
-      )}
-      {viewMode === 'calendar' && (
-        <CalendarGridView months={months ?? []} selectedYm={selectedYm} onSelect={setSelectedYm} />
-      )}
+      {/* Backfill: extend history one year before the goal's creation */}
+      <Card className="flex flex-row items-center justify-between gap-3 px-4 py-2.5">
+        <p className="text-sm text-muted-foreground">{t('goals.backfillHint')}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          disabled={extendHistory.isPending}
+          onClick={() => extendHistory.mutate(goalId)}
+        >
+          {extendHistory.isPending && <Loader2 className="size-3 animate-spin" />}
+          {t('goals.addYear', { year: yearToAdd })}
+        </Button>
+      </Card>
 
-      {/* Month detail panel */}
-      {selectedEntry && (
-        <MonthDetailPanel goalId={goalId} entry={selectedEntry} onClose={() => setSelectedYm(null)} />
-      )}
+      {/* Two-column layout: active view (left) + sticky edit panel (right, desktop) */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px] items-start">
+        <div className="min-w-0 space-y-4">
+          {viewMode === 'grid' && (
+            <YearGridView months={months ?? []} selectedYm={selectedYm} onSelect={setSelectedYm} />
+          )}
+          {viewMode === 'timeline' && (
+            <TimelineView months={months ?? []} selectedYm={selectedYm} onSelect={setSelectedYm} />
+          )}
+          {viewMode === 'calendar' && (
+            <CalendarGridView months={months ?? []} selectedYm={selectedYm} onSelect={setSelectedYm} />
+          )}
+        </div>
 
-      {!selectedEntry && (
-        <p className="text-center text-sm text-muted-foreground">{t('goals.clickMonthHint')}</p>
-      )}
+        {/* Desktop: sticky side panel (does not collapse → no layout shift) */}
+        <div className="hidden lg:block lg:sticky lg:top-4">
+          {selectedEntry ? (
+            <MonthDetailPanel goalId={goalId} entry={selectedEntry} onClose={() => setSelectedYm(null)} />
+          ) : (
+            <Card className="flex items-center justify-center p-6">
+              <p className="text-center text-sm text-muted-foreground">{t('goals.clickMonthHint')}</p>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile/tablet: bottom sheet */}
+      <Sheet
+        open={!!selectedEntry && !isDesktop}
+        onOpenChange={(open) => { if (!open) setSelectedYm(null) }}
+      >
+        <SheetContent
+          side="bottom"
+          showCloseButton={false}
+          className="max-h-[85vh] overflow-y-auto rounded-t-2xl p-4"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>{selectedEntry ? fullMonthName(selectedEntry.yearMonth) : ''}</SheetTitle>
+            <SheetDescription>{t('goals.calendar')}</SheetDescription>
+          </SheetHeader>
+          {selectedEntry && (
+            <MonthDetailPanel
+              goalId={goalId}
+              entry={selectedEntry}
+              onClose={() => setSelectedYm(null)}
+              className={cn('border-0 bg-transparent shadow-none')}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

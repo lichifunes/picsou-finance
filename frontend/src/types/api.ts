@@ -124,6 +124,7 @@ export interface GoalProgress {
   targetAmount: number
   deadline: string
   createdAt: string
+  historyStartMonth: string | null
   accounts: Account[]
   currentTotal: number
   percentComplete: number

@@ -258,6 +258,8 @@
     "achieved": "Achieved",
     "of": "of",
     "clickMonthHint": "Click a month to see details",
+    "backfillHint": "Add past contributions from before the goal was created.",
+    "addYear": "+ Add {{year}}",
     "noData": "—",
     "futureMonth": "···",
     "linkedAccounts": "Linked accounts",

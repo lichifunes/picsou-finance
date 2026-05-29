@@ -258,6 +258,8 @@
     "achieved": "Atteint",
     "of": "sur",
     "clickMonthHint": "Cliquez sur un mois pour voir les détails",
+    "backfillHint": "Ajoutez d'anciennes contributions antérieures à la création de l'objectif.",
+    "addYear": "+ Ajouter {{year}}",
     "noData": "—",
     "futureMonth": "···",
     "linkedAccounts": "Comptes liés",

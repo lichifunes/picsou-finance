@@ -36,6 +36,10 @@ public class Goal extends AuditableEntity {
     @Column(nullable = false)
     private LocalDate deadline;
 
+    /** Optional backfill start ("YYYY-MM"). When earlier than createdAt, the calendar extends back to it. */
+    @Column(name = "history_start_month", length = 7)
+    private String historyStartMonth;
+
     @JsonIgnore
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

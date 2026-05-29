@@ -5,9 +5,15 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/shared/NumericInput'
 import { Label } from '@/components/ui/label'
 import { ColorPicker } from '@/components/shared/ColorPicker'
+import { parseAmount } from '@/lib/utils'
 import { ACCOUNT_TYPES } from '@/lib/constants'
+
+/** RHF setValueAs: empty → undefined (optional), else comma-tolerant number. */
+const toOptionalNumber = (v: unknown): number | undefined =>
+  v === '' || v == null ? undefined : parseAmount(String(v))
 import {
   Dialog,
   DialogContent,
@@ -126,7 +132,7 @@ export function AccountForm({ open, onOpenChange, onSubmit, defaultValues, title
               <Label htmlFor="balance">
                 {selectedType === 'LOAN' ? t('debt.remaining') : t('accounts.balance')}
               </Label>
-              <Input id="balance" type="number" step="0.01" {...register('currentBalance', { valueAsNumber: true })} />
+              <NumericInput id="balance" {...register('currentBalance', { setValueAs: toOptionalNumber })} />
             </div>
           </div>
 
@@ -152,23 +158,17 @@ export function AccountForm({ open, onOpenChange, onSubmit, defaultValues, title
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="borrowedAmount">{t('debt.borrowedAmount')}</Label>
-                  <Input
+                  <NumericInput
                     id="borrowedAmount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    {...register('borrowedAmount', { valueAsNumber: true })}
+                    {...register('borrowedAmount', { setValueAs: toOptionalNumber })}
                     placeholder="100000"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="interestRatePct">{t('debt.interestRate')} (%)</Label>
-                  <Input
+                  <NumericInput
                     id="interestRatePct"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    {...register('interestRatePct', { valueAsNumber: true })}
+                    {...register('interestRatePct', { setValueAs: toOptionalNumber })}
                     placeholder="1.5"
                   />
                 </div>
@@ -176,23 +176,17 @@ export function AccountForm({ open, onOpenChange, onSubmit, defaultValues, title
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="monthlyPayment">{t('debt.monthlyPayment')}</Label>
-                  <Input
+                  <NumericInput
                     id="monthlyPayment"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    {...register('monthlyPayment', { valueAsNumber: true })}
+                    {...register('monthlyPayment', { setValueAs: toOptionalNumber })}
                     placeholder="394.40"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="insuranceMonthly">{t('debt.insuranceMonthly')}</Label>
-                  <Input
+                  <NumericInput
                     id="insuranceMonthly"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    {...register('insuranceMonthly', { valueAsNumber: true })}
+                    {...register('insuranceMonthly', { setValueAs: toOptionalNumber })}
                     placeholder="0"
                   />
                 </div>
@@ -200,12 +194,9 @@ export function AccountForm({ open, onOpenChange, onSubmit, defaultValues, title
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="fileFees">{t('debt.fileFees')}</Label>
-                  <Input
+                  <NumericInput
                     id="fileFees"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    {...register('fileFees', { valueAsNumber: true })}
+                    {...register('fileFees', { setValueAs: toOptionalNumber })}
                     placeholder="0"
                   />
                 </div>

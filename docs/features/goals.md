@@ -1,6 +1,6 @@
 # Feature: Goals
 
-> Last updated: 2026-05-18 (target trajectory + at-current-pace projection)
+> Last updated: 2026-05-29 (history backfill before goal creation + avg manual-contribution fallback)
 
 ## Context
 
@@ -20,12 +20,12 @@ A `Goal` has a M:N relationship with `Account` via the `goal_account` join table
 - **percentComplete**: `(currentTotal / targetAmount) * 100`, rounded to 4 decimal places.
 - **monthsLeft**: `ChronoUnit.MONTHS.between(today, deadline)`, minimum 0.
 - **monthlyNeeded**: `(target - currentTotal) / monthsLeft`. If deadline has passed, the entire remaining amount is the monthly need.
-- **avgMonthlyContribution**: Average monthly balance increase over the last 3 months across all linked accounts, computed from `BalanceSnapshot` history. Returns `null` if no snapshot history exists yet. Displayed in the UI but no longer drives `isOnTrack`.
+- **avgMonthlyContribution**: Average monthly balance increase over the last 3 months across all linked accounts, computed from `BalanceSnapshot` history. **Fallback for manually-tracked goals**: when no linked account has snapshot data (`accountsWithData == 0`), the average is computed from the recorded `GoalManualContribution` entries instead (sum ÷ count), so backfilled manual history refines the figure. Returns `null` only when neither source has data. Displayed in the UI but no longer drives `isOnTrack`.
 - **isOnTrack**: `Σ effective(past months) >= Σ objective(past months)`. `effective` = `manualActual ?? snapshot-delta` (months with neither are skipped). `objective` = `override ?? monthlyNeeded`. "Past" = strictly before the current month (current month is in progress). Returns `true` when the goal has no `createdAt`, no past month, or no past month with data (benefit of the doubt).
 
 ### Monthly tracking
 
-`GoalService.getMonthlyEntries()` generates a month-by-month breakdown from goal creation to deadline. For each month:
+`GoalService.getMonthlyEntries()` generates a month-by-month breakdown from the *effective start month* to the deadline. The effective start is the goal's `createdAt` month, unless `Goal.historyStartMonth` is set to an earlier month (see **History backfill** below). For each month:
 
 - **objective**: The auto-computed `monthlyNeeded`.
 - **actual**: The real balance delta for that month (from snapshots: end-of-month balance minus end-of-previous-month balance). `null` for future months.
@@ -40,11 +40,22 @@ Two separate override mechanisms:
 - **GoalMonthOverride**: Overrides the monthly savings *objective* for a specific month. Useful when the user plans to save more or less than the computed target.
 - **GoalManualContribution**: Overrides the monthly savings *actual* for a specific month. Useful when the user wants to track contributions that don't appear in account balances (e.g. cash savings).
 
+### History backfill (before goal creation)
+
+Users often start a goal in Picsou after they've already been saving for it. The backfill feature lets them extend the calendar *earlier* than the goal's creation date so they can record that prior history (typically as manual contributions).
+
+- **`Goal.historyStartMonth`** (`VARCHAR(7)`, nullable, format `"YYYY-MM"`): when set and earlier than the `createdAt` month, the monthly calendar starts from this month. `null` keeps the default (`createdAt`-derived) start. Added in migration `V32__goal_history_start.sql`.
+- **`GoalService.effectiveStartMonth(goal)`**: returns `min(createdAt month, historyStartMonth)` — the single source of truth for where the calendar begins.
+- **`POST /api/goals/{id}/history/extend`** → `GoalService.extendHistory()`: decrements the effective start by one year and persists it as the new `historyStartMonth`. The frontend exposes this via a slim "+ Add {year}" card above the calendar (`useExtendGoalHistory`), where `year = earliestRenderedYear - 1`.
+- Backfilled months have no snapshot data, so they render empty until the user fills them in manually.
+- **`isOnTrack` is deliberately NOT affected by backfill**: it stays anchored to `createdAt` (`isOnTrackFromPastMonths` is unchanged). Backfill is history-only — when actuals come from linked accounts, extending the window backwards must not retroactively change the "on track" verdict. Backfilled manual contributions *do* feed `avgMonthlyContribution` (see above), refining the "average monthly" figure for manually-tracked goals.
+
 ### Key files
 
 - `service/GoalService.java` -- Business logic: CRUD, progress calculation, monthly tracking, overrides
 - `controller/GoalController.java` -- REST endpoints under `/api/goals/`
-- `model/Goal.java` -- JPA entity: name, targetAmount, deadline, M:N accounts
+- `model/Goal.java` -- JPA entity: name, targetAmount, deadline, M:N accounts, `historyStartMonth`
+- `db/migration/V32__goal_history_start.sql` -- adds the nullable `history_start_month` column
 - `model/GoalMonthOverride.java` -- Per-month objective override (goal_id, yearMonth, amount)
 - `model/GoalManualContribution.java` -- Per-month actual override (goal_id, yearMonth, amount)
 - `repository/GoalRepository.java` -- `findAllWithAccounts()` for eager fetching
@@ -107,7 +118,7 @@ GoalService.setMonthOverride(goalId, yearMonth, amount)
 - **Accounts can belong to multiple goals**: If an account is linked to two goals, its full balance counts toward both goals' `currentTotal`. There is no "partial allocation."
 - **Monthly actual is computed from snapshots, not transactions**: The actual savings for a month is the delta between end-of-month snapshot balances. If snapshots are missing (e.g. new account, no sync), that month will have `null` actual.
 - **Override does not recalculate monthlyNeeded**: Setting a month override changes the display value for that month but does not affect the computed `monthlyNeeded`. The auto-computed objective is always based on `(target - current) / monthsLeft`.
-- **Goal creation to deadline range**: `getMonthlyEntries()` iterates from the goal's `createdAt` month to the deadline month. If the goal was created mid-month, the first month's actual may be partial.
+- **Effective-start to deadline range**: `getMonthlyEntries()` iterates from the effective start month (`min(createdAt, historyStartMonth)`) to the deadline month. If the goal was created mid-month, the first month's actual may be partial. Backfilled months (before `createdAt`) never have snapshot data.
 - **`findAllWithAccounts()` uses a custom query**: Goals are fetched with their accounts eagerly loaded to avoid N+1 queries during progress calculation.
 
 ## Tests

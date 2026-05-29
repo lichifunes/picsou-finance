@@ -6,6 +6,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Accept French commas as decimal separators: "12,50" → "12.50". */
+export function normalizeDecimal(value: string | null | undefined): string {
+  return (value ?? '').replace(',', '.')
+}
+
+/** Parse a user-entered amount tolerating both "." and "," separators. */
+export function parseAmount(value: string | null | undefined): number {
+  return parseFloat(normalizeDecimal(value))
+}
+
 export function getLocale(): string {
   try {
     const lang = document.documentElement.lang || navigator.language
@@ -30,6 +40,21 @@ export function formatDate(dateStr: string | null | undefined, locale = getLocal
     return `${day}-${month}-${year}`
   }
   return new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(dateStr))
+}
+
+export function formatDateTime(dateStr: string | null | undefined, locale = getLocale(), format?: DateFormat): string {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  const resolvedFormat = format ?? useAppStore.getState().dateFormat
+  if (resolvedFormat === 'iso') {
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const year = d.getFullYear()
+    const hours = String(d.getHours()).padStart(2, '0')
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    return `${day}-${month}-${year} ${hours}:${minutes}`
+  }
+  return new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(d)
 }
 
 export function formatPercent(value: number, locale = getLocale()): string {

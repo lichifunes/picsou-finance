@@ -145,7 +145,7 @@ public class GoalService {
             ? currentTotal.divide(target, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
             : BigDecimal.ZERO;
 
-        BigDecimal avgMonthlyContribution = calculateAvgMonthlyContribution(goal.getAccounts());
+        BigDecimal avgMonthlyContribution = calculateAvgMonthlyContribution(goal);
 
         // isOnTrack now compares cumulative past objectives vs cumulative past effectives
         // (overrides + manual contributions included). Indirect user override via the calendar.
@@ -162,12 +162,14 @@ public class GoalService {
     }
 
     /**
-     * Calculates average monthly contribution over the last 3 months
-     * by comparing balance snapshots (first vs last, averaged over elapsed months).
-     * Returns null when no snapshot history is available yet.
+     * Average monthly contribution. Primary source: balance snapshots of linked
+     * accounts over the last 3 months (first vs last, averaged over elapsed months).
+     * Fallback for manually-tracked goals (no linked-account snapshot data): the mean
+     * of the recorded manual contributions, which backfilled history then refines.
+     * Returns null when neither source has data.
      */
-    private BigDecimal calculateAvgMonthlyContribution(List<Account> accounts) {
-        if (accounts.isEmpty()) return null;
+    private BigDecimal calculateAvgMonthlyContribution(Goal goal) {
+        List<Account> accounts = goal.getAccounts();
 
         LocalDate threeMonthsAgo = LocalDate.now().minusMonths(3).withDayOfMonth(1);
         BigDecimal totalContribution = BigDecimal.ZERO;
@@ -191,8 +193,17 @@ public class GoalService {
             }
         }
 
-        if (accountsWithData == 0) return null;
-        return totalContribution.divide(BigDecimal.valueOf(accountsWithData), 2, RoundingMode.HALF_UP);
+        if (accountsWithData > 0) {
+            return totalContribution.divide(BigDecimal.valueOf(accountsWithData), 2, RoundingMode.HALF_UP);
+        }
+
+        // Fallback: mean of recorded manual contributions (includes backfilled months).
+        List<GoalManualContribution> manuals = manualContributionRepository.findByGoalId(goal.getId());
+        if (manuals.isEmpty()) return null;
+        BigDecimal manualSum = manuals.stream()
+            .map(GoalManualContribution::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return manualSum.divide(BigDecimal.valueOf(manuals.size()), 2, RoundingMode.HALF_UP);
     }
 
     /**
@@ -263,9 +274,7 @@ public class GoalService {
         Map<String, BigDecimal> manualMap = manualContributionRepository.findByGoalId(goalId).stream()
             .collect(Collectors.toMap(GoalManualContribution::getYearMonth, GoalManualContribution::getAmount));
 
-        YearMonth startMonth = YearMonth.from(
-            goal.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDate()
-        );
+        YearMonth startMonth = effectiveStartMonth(goal);
         YearMonth endMonth = YearMonth.from(goal.getDeadline());
 
         List<GoalMonthEntryResponse> entries = new ArrayList<>();
@@ -280,6 +289,34 @@ public class GoalService {
             current = current.plusMonths(1);
         }
         return entries;
+    }
+
+    /**
+     * Earliest month shown in the calendar: the goal's createdAt month, or the
+     * backfilled historyStartMonth when it is set and earlier.
+     */
+    private YearMonth effectiveStartMonth(Goal goal) {
+        YearMonth createdMonth = YearMonth.from(
+            goal.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDate()
+        );
+        if (goal.getHistoryStartMonth() != null) {
+            YearMonth hist = YearMonth.parse(goal.getHistoryStartMonth());
+            if (hist.isBefore(createdMonth)) return hist;
+        }
+        return createdMonth;
+    }
+
+    /**
+     * Extends the goal's calendar one year further into the past so the user can
+     * backfill contributions/objectives from before they started using Picsou.
+     * Does NOT affect the on-track calculation, which stays anchored to createdAt.
+     */
+    @Transactional
+    public GoalProgressResponse extendHistory(Long goalId, Long memberId) {
+        Goal goal = getOrThrow(goalId, memberId);
+        YearMonth extended = effectiveStartMonth(goal).minusYears(1);
+        goal.setHistoryStartMonth(extended.toString());
+        return toProgressResponse(goalRepository.save(goal));
     }
 
     @Transactional

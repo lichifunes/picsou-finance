@@ -12,6 +12,8 @@ import { GoalDetailModal } from './GoalDetailModal'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/shared/NumericInput'
+import { parseAmount } from '@/lib/utils'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -83,7 +85,7 @@ export function GoalsPage() {
     e.preventDefault()
     const data = {
       name: form.name,
-      targetAmount: parseFloat(form.targetAmount),
+      targetAmount: parseAmount(form.targetAmount),
       deadline: form.deadline,
       accountIds: form.accountIds,
     }
@@ -178,11 +180,8 @@ export function GoalsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="goal-target">{t('goals.targetAmount')}</Label>
-                <Input
+                <NumericInput
                   id="goal-target"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
                   required
                   value={form.targetAmount}
                   onChange={(e) => setForm((f) => ({ ...f, targetAmount: e.target.value }))}

@@ -10,6 +10,8 @@ export const goalsApi = {
   getHistory: (id: number) =>
     api.get<{ date: string; total: number; invested: number }[]>(`/goals/${id}/history`).then(r => r.data),
   getMonths: (id: number) => api.get<GoalMonthEntry[]>(`/goals/${id}/months`).then(r => r.data),
+  extendHistory: (id: number) =>
+    api.post<GoalProgress>(`/goals/${id}/history/extend`).then(r => r.data),
   setMonthOverride: (id: number, ym: string, amount: number) =>
     api.put<GoalMonthEntry>(`/goals/${id}/months/${ym}`, { amount }).then(r => r.data),
   deleteMonthOverride: (id: number, ym: string) =>

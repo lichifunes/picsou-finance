@@ -1,6 +1,6 @@
 # Feature: Goal Calendar — Grid View (donuts)
 
-> Last updated: 2026-04-08
+> Last updated: 2026-05-29 (responsive side-panel / bottom-sheet layout)
 
 ## Context
 
@@ -60,6 +60,18 @@ The "Grid" view of `GoalCalendarPage` displays past months as interactive donut 
 - Selected: `border-primary bg-accent`
 - Unselected: `border-border hover:bg-accent/50`
 
+### Page layout — edit panel placement (responsive)
+
+The selected month's `MonthDetailPanel` is shown *beside* the calendar, not stacked below it:
+
+- **Desktop (`≥ lg`)**: a 2-column grid `grid lg:grid-cols-[1fr_360px] items-start` — active view on the left (`min-w-0`), a `lg:sticky lg:top-4` right column on the right. The right column always renders (panel when a month is selected, a hint card otherwise) so the grid never collapses → no layout shift.
+- **Mobile/tablet (`< lg`)**: the panel renders in a `Sheet side="bottom"` (shadcn). A local `matchMedia('(min-width: 1024px)')` flag (`isDesktop`) gates `open={!!selectedEntry && !isDesktop}` so the sheet never opens on desktop (where the overlay would otherwise darken the screen behind the visible side panel). An `sr-only` `SheetTitle`/`SheetDescription` satisfies Radix Dialog a11y.
+- `MonthDetailPanel` takes an optional `className` (the sheet passes `border-0 bg-transparent shadow-none` to avoid a nested-card look) and uses a single-column inner grid — Tailwind media queries are viewport-based, so `md:grid-cols-2` would have split inside the narrow 360px panel.
+
+### History backfill card
+
+A slim `<Card>` above the 2-column layout offers "+ Add {year}" (`goals.addYear`), where `year = earliestRenderedYear - 1`. It calls `useExtendGoalHistory()` → `POST /goals/{id}/history/extend`, extending the calendar one year earlier. See [goals.md](./goals.md) → *History backfill*.
+
 ## Technical choices
 
 | Choice | Why | Rejected alternative |
@@ -76,7 +88,8 @@ The "Grid" view of `GoalCalendarPage` displays past months as interactive donut 
 - **`stroke-linecap="butt"` at 100% bonus**: if the bonus arc reaches exactly the circumference with `"round"`, the rounded endpoints overlap and create a visible bump at the top. Detect `bonusFilled >= circ - 0.1` to switch to `"butt"`.
 - **`var(--border)` in dark mode** = `oklch(1 0 0 / 10%)` (white at 10% opacity) — nearly invisible as a background track. Use `var(--muted)` instead.
 - **`textColor` === `color`**: inner text color is the same as the arc color. Colors brightened via CSS relative color syntax read well on dark backgrounds.
-- **Do not touch** `TimelineView`, `CalendarGridView`, `MonthDetailPanel` — these views are independent and do not share `formatCompact` / `ProgressRing`.
+- **`TimelineView` / `CalendarGridView` are independent** — they do not share `formatCompact` / `ProgressRing`; edit the donut grid without affecting them.
+- **`MonthDetailPanel` is now rendered in two places** (sticky desktop column *and* mobile bottom sheet) from the same `selectedEntry`. Its inner grid must stay single-column (viewport-based media queries break inside the narrow panel) and all amount inputs use the shared `NumericInput` (comma/point tolerant).
 
 ## Tests
 

@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAddSnapshot } from '@/features/accounts/hooks'
 import { extractErrorMessage } from '@/lib/errors'
+import { parseAmount } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/shared/NumericInput'
 import { Label } from '@/components/ui/label'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
@@ -82,7 +83,7 @@ export function MonthEndBalanceModal({ open, onClose, accountId, history }: Mont
           const saveDate = existing ? existing.date : date
           return addSnapshot.mutateAsync({
             id: accountId,
-            balance: parseFloat(values[key]),
+            balance: parseAmount(values[key]),
             date: saveDate,
           })
         })
@@ -116,11 +117,8 @@ export function MonthEndBalanceModal({ open, onClose, accountId, history }: Mont
                 >
                   {label}
                 </Label>
-                <Input
+                <NumericInput
                   id={`month-${key}`}
-                  type="number"
-                  step="any"
-                  min="0"
                   value={values[key] ?? ''}
                   onChange={e => handleChange(key, e.target.value)}
                   placeholder="—"

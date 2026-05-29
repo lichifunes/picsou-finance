@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/shared/NumericInput'
 import { Label } from '@/components/ui/label'
+import { parseAmount } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 import type { HoldingResponse } from '@/types/api'
 
@@ -34,8 +35,8 @@ export function EditHoldingModal({ open, onOpenChange, holding, onSubmit, isLoad
     try {
       await onSubmit(
         holding.ticker,
-        parseFloat(quantity),
-        averageBuyIn ? parseFloat(averageBuyIn) : undefined,
+        parseAmount(quantity),
+        averageBuyIn ? parseAmount(averageBuyIn) : undefined,
       )
       onOpenChange(false)
     } catch {
@@ -52,10 +53,7 @@ export function EditHoldingModal({ open, onOpenChange, holding, onSubmit, isLoad
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <Label>Quantité</Label>
-            <Input
-              type="number"
-              step="any"
-              min="0"
+            <NumericInput
               value={quantity}
               onChange={e => setQuantity(e.target.value)}
               required
@@ -63,10 +61,7 @@ export function EditHoldingModal({ open, onOpenChange, holding, onSubmit, isLoad
           </div>
           <div className="space-y-1">
             <Label>Prix moyen d'achat (€) <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
-            <Input
-              type="number"
-              step="any"
-              min="0"
+            <NumericInput
               value={averageBuyIn}
               onChange={e => setAverageBuyIn(e.target.value)}
               placeholder="—"
