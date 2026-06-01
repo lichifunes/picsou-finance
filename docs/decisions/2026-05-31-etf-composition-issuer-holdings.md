@@ -1,7 +1,7 @@
 # ADR: ETF composition from issuer holdings files (no auth), pluggable per issuer
 
 > Date: 2026-05-31
-> Status: ✅ Active
+> Status: ⚠️ Superseded by [ADR 2026-06-01 — ETF composition via Boursorama](./2026-06-01-etf-composition-via-boursorama.md)
 
 ## Context
 
