@@ -242,6 +242,27 @@
         "STOCK": "Action",
         "CRYPTO": "Crypto",
         "UNKNOWN": "Inconnu"
+      },
+      "sectorNames": {
+        "technology": "Technologie",
+        "communication_services": "Services de communication",
+        "consumer_cyclical": "Consommation cyclique",
+        "consumer_defensive": "Consommation défensive",
+        "healthcare": "Santé",
+        "industrials": "Industrie",
+        "utilities": "Services publics",
+        "basic_materials": "Matériaux de base",
+        "energy": "Énergie",
+        "financial_services": "Services financiers",
+        "real_estate": "Immobilier"
+      },
+      "countryNames": {
+        "US": "États-Unis", "NL": "Pays-Bas", "CA": "Canada", "FR": "France",
+        "GB": "Royaume-Uni", "DE": "Allemagne", "CH": "Suisse", "IE": "Irlande",
+        "JP": "Japon", "CN": "Chine", "LU": "Luxembourg", "AU": "Australie",
+        "ES": "Espagne", "IT": "Italie", "SE": "Suède", "DK": "Danemark", "HK": "Hong Kong",
+        "KR": "Corée du Sud", "TW": "Taïwan", "IN": "Inde", "BR": "Brésil", "BE": "Belgique",
+        "FI": "Finlande", "NO": "Norvège", "SG": "Singapour"
       }
     }
   },

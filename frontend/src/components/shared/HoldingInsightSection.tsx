@@ -49,8 +49,8 @@ export function HoldingInsightSection({ ticker, name, open }: HoldingInsightSect
       {composition ? (
         <div className="space-y-4">
           <CompositionBar title={t('holdings.insight.companies')} slices={composition.companies} t={t} />
-          <CompositionBar title={t('holdings.insight.countries')} slices={composition.countries} t={t} />
-          <CompositionBar title={t('holdings.insight.sectors')} slices={composition.sectors} t={t} />
+          <CompositionBar title={t('holdings.insight.countries')} slices={composition.countries} t={t} labelNs="holdings.insight.countryNames" />
+          <CompositionBar title={t('holdings.insight.sectors')} slices={composition.sectors} t={t} labelNs="holdings.insight.sectorNames" />
           {(composition.source || composition.asOf) && (
             <p className="text-[10px] text-muted-foreground">
               {composition.source && t('holdings.insight.source', { source: composition.source })}
@@ -70,11 +70,13 @@ interface CompositionBarProps {
   title: string
   slices: WeightedSlice[]
   t: TFunction
+  labelNs?: string
 }
 
-function CompositionBar({ title, slices, t }: CompositionBarProps) {
+function CompositionBar({ title, slices, t, labelNs }: CompositionBarProps) {
   if (!slices || slices.length === 0) return null
 
+  const labelOf = (raw: string) => (labelNs ? t(`${labelNs}.${raw}`, raw) : raw)
   const sum = slices.reduce((acc, s) => acc + s.percent, 0)
   const others = Math.max(0, Math.round((100 - sum) * 10) / 10)
 
@@ -89,7 +91,7 @@ function CompositionBar({ title, slices, t }: CompositionBarProps) {
             variant={SEGMENT_VARIANTS[i % SEGMENT_VARIANTS.length]}
             alignment="left"
           >
-            <PartitionBarSegmentTitle>{slice.label}</PartitionBarSegmentTitle>
+            <PartitionBarSegmentTitle>{labelOf(slice.label)}</PartitionBarSegmentTitle>
             <PartitionBarSegmentValue>{slice.percent.toFixed(1)}%</PartitionBarSegmentValue>
           </PartitionBarSegment>
         ))}

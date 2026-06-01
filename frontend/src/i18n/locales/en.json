@@ -242,6 +242,27 @@
         "STOCK": "Stock",
         "CRYPTO": "Crypto",
         "UNKNOWN": "Unknown"
+      },
+      "sectorNames": {
+        "technology": "Technology",
+        "communication_services": "Communication Services",
+        "consumer_cyclical": "Consumer Cyclical",
+        "consumer_defensive": "Consumer Defensive",
+        "healthcare": "Healthcare",
+        "industrials": "Industrials",
+        "utilities": "Utilities",
+        "basic_materials": "Basic Materials",
+        "energy": "Energy",
+        "financial_services": "Financial Services",
+        "real_estate": "Real Estate"
+      },
+      "countryNames": {
+        "US": "United States", "NL": "Netherlands", "CA": "Canada", "FR": "France",
+        "GB": "United Kingdom", "DE": "Germany", "CH": "Switzerland", "IE": "Ireland",
+        "JP": "Japan", "CN": "China", "LU": "Luxembourg", "AU": "Australia",
+        "ES": "Spain", "IT": "Italy", "SE": "Sweden", "DK": "Denmark", "HK": "Hong Kong",
+        "KR": "South Korea", "TW": "Taiwan", "IN": "India", "BR": "Brazil", "BE": "Belgium",
+        "FI": "Finland", "NO": "Norway", "SG": "Singapore"
       }
     }
   },

@@ -10,9 +10,20 @@ vi.mock('@/features/accounts/hooks', () => ({
   useSecurityInsight: (...args: unknown[]) => useSecurityInsight(...args),
 }))
 
-// Return the interpolated key so assertions can match on stable identifiers.
+// Minimal i18n stub: translate the namespaced keys this component looks up,
+// otherwise fall back to the provided default string (mirrors t(key, raw)).
+// The second arg is only a fallback when it is a string — t(key, {opts}) keeps returning the key.
+const TEST_LABELS: Record<string, string> = {
+  'holdings.insight.countryNames.US': 'United States',
+  'holdings.insight.countryNames.JP': 'Japan',
+  'holdings.insight.sectorNames.technology': 'Technology',
+  'holdings.insight.sectorNames.financial_services': 'Financial Services',
+}
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, fallback?: unknown) =>
+      TEST_LABELS[key] ?? (typeof fallback === 'string' ? fallback : key),
+  }),
 }))
 
 function mockInsight(data: SecurityInsight | Record<string, never> | undefined, isLoading = false) {
@@ -24,8 +35,8 @@ const etfComposition: SecurityInsight = {
   assetType: 'ETF',
   composition: {
     companies: [{ label: 'Apple', percent: 5.1 }, { label: 'Microsoft', percent: 4.4 }],
-    countries: [{ label: 'United States', percent: 70.8 }, { label: 'Japan', percent: 6.0 }],
-    sectors: [{ label: 'Information Technology', percent: 24.1 }],
+    countries: [{ label: 'US', percent: 70.8 }, { label: 'JP', percent: 6.0 }],
+    sectors: [{ label: 'technology', percent: 24.1 }, { label: 'financial_services', percent: 16.4 }],
     source: 'iShares',
     asOf: '2026-05-31',
   },
@@ -43,6 +54,7 @@ describe('HoldingInsightSection', () => {
     expect(screen.getByText('holdings.insight.sectors')).toBeInTheDocument()
     expect(screen.getByText('Apple')).toBeInTheDocument()
     expect(screen.getByText('United States')).toBeInTheDocument()
+    expect(screen.getByText('Technology')).toBeInTheDocument()
     expect(screen.getByText('holdings.insight.assetTypes.ETF')).toBeInTheDocument()
   })
 
