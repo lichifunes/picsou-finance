@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { HoldingInsightSection } from './HoldingInsightSection'
 import type { SecurityInsight } from '@/types/api'
 
@@ -63,6 +63,22 @@ describe('HoldingInsightSection', () => {
     render(<HoldingInsightSection ticker="IWDA" name="iShares Core MSCI World" open />)
     // companies sum to 9.5% → an "Autres" remainder is expected.
     expect(screen.getAllByText('holdings.insight.others').length).toBeGreaterThan(0)
+  })
+
+  it('toggles between the line and block composition views', () => {
+    mockInsight(etfComposition)
+    const { container } = render(<HoldingInsightSection ticker="IWDA" name="iShares Core MSCI World" open />)
+
+    // Default is the "line" view: three bars, labels in the legend.
+    expect(container.querySelectorAll('[data-slot="partition-bar"]')).toHaveLength(3)
+    expect(screen.getByText('United States')).toBeInTheDocument()
+
+    // Switch to the "block" view — still three bars, labels now inside the segments.
+    fireEvent.click(screen.getByText('holdings.insight.viewBlock'))
+    expect(container.querySelectorAll('[data-slot="partition-bar"]')).toHaveLength(3)
+    expect(screen.getByText('United States')).toBeInTheDocument()
+    expect(screen.getByText('Apple')).toBeInTheDocument()
+    expect(screen.getByText('Technology')).toBeInTheDocument()
   })
 
   it('shows only the type badge (no bars) for a stock', () => {

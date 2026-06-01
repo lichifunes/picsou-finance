@@ -1,15 +1,27 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Columns3, AlignJustify } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import PartitionBar, { PartitionBarSegment } from '@/components/ui/partition-bar'
+import PartitionBar, {
+  PartitionBarSegment,
+  PartitionBarSegmentTitle,
+  PartitionBarSegmentValue,
+} from '@/components/ui/partition-bar'
 import { useSecurityInsight } from '@/features/accounts/hooks'
 import type { WeightedSlice } from '@/types/api'
 import { cn, formatDate } from '@/lib/utils'
 
-// Solid, theme-stable palette cycled across slices. The bar stays a pure
-// proportional visual; the legend below carries the labels, so this works at
-// any slice count and reflows cleanly on a phone (no sub-10px truncated text).
+// Two ways to render a composition, switchable via the view toggle:
+//  - "block": labelled segments inside a single proportional bar (rich on a wide screen).
+//  - "line":  a slim colour-only bar + a wrapping legend (legible at any width / on a phone).
+type CompositionView = 'block' | 'line'
+
+// Block view: cycle variants so adjacent labelled segments stay visually distinct.
+const SEGMENT_VARIANTS = ['default', 'secondary', 'outline', 'muted'] as const
+
+// Line view: solid, theme-stable palette. The bar is a pure proportional visual;
+// the legend carries the labels, so it works at any slice count without truncation.
 const PALETTE = [
   'bg-sky-500',
   'bg-violet-500',
@@ -32,6 +44,7 @@ interface HoldingInsightSectionProps {
 
 export function HoldingInsightSection({ ticker, name, open }: HoldingInsightSectionProps) {
   const { t } = useTranslation()
+  const [view, setView] = useState<CompositionView>('line')
   const { data, isLoading } = useSecurityInsight(ticker, name, open)
 
   if (!ticker) return null
@@ -58,9 +71,12 @@ export function HoldingInsightSection({ ticker, name, open }: HoldingInsightSect
 
       {composition ? (
         <div className="space-y-4">
-          <CompositionBar title={t('holdings.insight.companies')} slices={composition.companies} t={t} />
-          <CompositionBar title={t('holdings.insight.countries')} slices={composition.countries} t={t} labelNs="holdings.insight.countryNames" />
-          <CompositionBar title={t('holdings.insight.sectors')} slices={composition.sectors} t={t} labelNs="holdings.insight.sectorNames" />
+          <div className="flex justify-end">
+            <CompositionViewToggle view={view} onChange={setView} t={t} />
+          </div>
+          <CompositionBar view={view} title={t('holdings.insight.companies')} slices={composition.companies} t={t} />
+          <CompositionBar view={view} title={t('holdings.insight.countries')} slices={composition.countries} t={t} labelNs="holdings.insight.countryNames" />
+          <CompositionBar view={view} title={t('holdings.insight.sectors')} slices={composition.sectors} t={t} labelNs="holdings.insight.sectorNames" />
           {(composition.source || composition.asOf) && (
             <p className="text-[10px] text-muted-foreground">
               {composition.source && t('holdings.insight.source', { source: composition.source })}
@@ -76,22 +92,103 @@ export function HoldingInsightSection({ ticker, name, open }: HoldingInsightSect
   )
 }
 
+interface CompositionViewToggleProps {
+  view: CompositionView
+  onChange: (view: CompositionView) => void
+  t: TFunction
+}
+
+// Segmented control mirroring the chart-mode toggle in HoldingDetailModal.
+function CompositionViewToggle({ view, onChange, t }: CompositionViewToggleProps) {
+  const options = [
+    { value: 'block' as const, label: t('holdings.insight.viewBlock'), Icon: Columns3 },
+    { value: 'line' as const, label: t('holdings.insight.viewLine'), Icon: AlignJustify },
+  ]
+  return (
+    <div className="inline-flex items-center rounded-full bg-muted p-0.5">
+      {options.map(({ value, label, Icon }) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => onChange(value)}
+          aria-pressed={view === value}
+          title={label}
+          className={cn(
+            'flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all',
+            view === value
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Icon className="size-3.5" />
+          <span>{label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 interface CompositionBarProps {
+  view: CompositionView
   title: string
   slices: WeightedSlice[]
   t: TFunction
   labelNs?: string
 }
 
-function CompositionBar({ title, slices, t, labelNs }: CompositionBarProps) {
+function CompositionBar({ view, title, slices, t, labelNs }: CompositionBarProps) {
   if (!slices || slices.length === 0) return null
 
   const labelOf = (raw: string) => (labelNs ? t(`${labelNs}.${raw}`, raw) : raw)
   const sum = slices.reduce((acc, s) => acc + s.percent, 0)
   const others = Math.max(0, Math.round((100 - sum) * 10) / 10)
 
-  // One entry per legend item; the bar and the legend share the same list so
-  // colours line up. "Others" is only meaningful when the top-N undershoots 100%.
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">{title}</p>
+      {view === 'block' ? (
+        <BlockView slices={slices} others={others} labelOf={labelOf} t={t} />
+      ) : (
+        <LineView slices={slices} others={others} labelOf={labelOf} t={t} />
+      )}
+    </div>
+  )
+}
+
+interface ViewProps {
+  slices: WeightedSlice[]
+  others: number
+  labelOf: (raw: string) => string
+  t: TFunction
+}
+
+// Labelled segments inside one proportional bar — the original "block" rendering.
+function BlockView({ slices, others, labelOf, t }: ViewProps) {
+  return (
+    <PartitionBar size="md" gap={1}>
+      {slices.map((slice, i) => (
+        <PartitionBarSegment
+          key={`${slice.label}-${i}`}
+          num={slice.percent}
+          variant={SEGMENT_VARIANTS[i % SEGMENT_VARIANTS.length]}
+          alignment="left"
+        >
+          <PartitionBarSegmentTitle>{labelOf(slice.label)}</PartitionBarSegmentTitle>
+          <PartitionBarSegmentValue>{slice.percent.toFixed(1)}%</PartitionBarSegmentValue>
+        </PartitionBarSegment>
+      ))}
+      {others > 0.5 && (
+        <PartitionBarSegment num={others} variant="muted" alignment="left">
+          <PartitionBarSegmentTitle>{t('holdings.insight.others')}</PartitionBarSegmentTitle>
+          <PartitionBarSegmentValue>{others.toFixed(1)}%</PartitionBarSegmentValue>
+        </PartitionBarSegment>
+      )}
+    </PartitionBar>
+  )
+}
+
+// Slim colour-only bar + wrapping legend — the mobile-friendly "line" rendering.
+function LineView({ slices, others, labelOf, t }: ViewProps) {
   const items: { label: string; percent: number; color: string }[] = slices.map((slice, i) => ({
     label: labelOf(slice.label),
     percent: slice.percent,
@@ -103,8 +200,6 @@ function CompositionBar({ title, slices, t, labelNs }: CompositionBarProps) {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-muted-foreground">{title}</p>
-
       {/* Proportional bar — colour only, stays legible at any width. */}
       <PartitionBar size="sm" gap={0.5} className="min-h-0">
         {items.map((item, i) => (

@@ -77,7 +77,11 @@ Backend:
 
 Frontend:
 - `components/ui/partition-bar.tsx` — partition-bar primitive (proportional flex segments).
-- `components/shared/HoldingInsightSection.tsx` — type badge + three breakdowns (Companies / Countries / Sectors). Each is a **slim colour-only `PartitionBar`** (proportions at a glance) above a **wrapping legend** (colour swatch + label + %); labels are *not* placed inside segments, so it stays readable on a phone regardless of slice count. Includes an `Others` remainder; translates country/sector keys (`labelNs`), renders company names verbatim; shows a `source · asOf` footnote.
+- `components/shared/HoldingInsightSection.tsx` — type badge + three breakdowns (Companies / Countries / Sectors), with a **view toggle** (segmented control, default **line**) switching all three between two renderings of the same `PartitionBar`:
+  - **block** — labelled segments *inside* one proportional bar (variant-cycled colours; rich on a wide screen).
+  - **line** — a slim colour-only bar above a **wrapping legend** (swatch + label + %); labels are *not* inside the segments, so it stays readable on a phone regardless of slice count.
+
+  Both share the `Others` remainder; both translate country/sector keys (`labelNs`) and render company names verbatim. A `source · asOf` footnote sits below. View state is component-local (resets when the modal closes).
 - `components/shared/HoldingDetailModal.tsx` — renders `<HoldingInsightSection>` after the stats grid; gated on the modal being open.
 - `features/accounts/api.ts` (`securityInsight`) and `features/accounts/hooks.ts` (`useSecurityInsight`).
 - `i18n/locales/{en,fr}.json` — `holdings.insight.sectorNames` + `holdings.insight.countryNames` key maps.
