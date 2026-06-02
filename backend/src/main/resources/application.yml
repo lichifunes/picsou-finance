@@ -39,6 +39,14 @@ spring:
 
 server:
   port: 8080
+  # Trust X-Forwarded-* from the local nginx so request scheme/host/port reflect the
+  # public-facing values when running behind a TLS-terminating reverse proxy. Without
+  # this, request.getScheme() stays "http" and Spring's CorsUtils.isCorsRequest() wrongly
+  # classifies genuinely same-origin HTTPS requests as cross-origin, rejecting them with
+  # 403. "framework" (Spring's ForwardedHeaderFilter) is used because the backend is only
+  # reachable through nginx — no per-IP trusted-proxy config needed — and it is a no-op
+  # when no X-Forwarded-* headers are present (dev / direct-HTTP access).
+  forward-headers-strategy: framework
   error:
     include-stacktrace: never     # never expose stack traces to clients
     include-message: never

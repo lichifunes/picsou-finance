@@ -5,6 +5,28 @@ All notable changes to Picsou are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] — 2026-06-02
+
+Patch release: fixes a **403** that blocked login and the setup wizard's **Origins**
+step when Picsou is served over HTTPS behind a reverse proxy.
+
+### Fixed
+
+- **403 "Request failed with status code 403" over HTTPS behind a reverse proxy.**
+  Picsou serves the SPA and the API from the same origin, so login/setup traffic is
+  same-origin and should never hit CORS. But Spring's `CorsUtils.isCorsRequest()`
+  compares the `Origin`'s scheme/host/port against the request's, and with no
+  forwarded-headers handling the TLS-terminated backend saw `http` while the browser
+  sent `https` — the scheme mismatch made same-origin requests look cross-origin and
+  the fail-closed allow-list rejected them with `403`. The backend now trusts proxy
+  headers (`server.forward-headers-strategy: framework`) and the bundled nginx
+  preserves the upstream `X-Forwarded-Proto`/`Host`/`Port` instead of overwriting them
+  with its own plain-HTTP `$scheme`. Same-origin HTTPS traffic is now correctly
+  recognized and the wizard works without pre-seeding `ALLOWED_ORIGINS`.
+
+  > Behind a reverse proxy, ensure it forwards `X-Forwarded-Proto: https`
+  > (Caddy, Traefik, Nginx Proxy Manager and Cloudflare Tunnel do by default).
+
 ## [1.0.1] — 2026-06-02
 
 Patch release: a crash-recovery fix for invalid account currencies, a dependency

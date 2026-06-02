@@ -65,7 +65,7 @@
 | Docker deployment | 2026-05-18 | [docker-deployment.md](./features/docker-deployment.md) |
 | Navigation (sidebar + mobile bottom nav) | 2026-04-13 | [sidebar-navigation.md](./features/sidebar-navigation.md) |
 | Multi-account family system | 2026-05-31 | [multi-account-family.md](./features/multi-account-family.md) |
-| CORS & cookie security | 2026-04-22 | [security-cors-cookies.md](./features/security-cors-cookies.md) |
+| CORS & cookie security | 2026-06-02 | [security-cors-cookies.md](./features/security-cors-cookies.md) |
 | 24H Intraday net worth chart | 2026-04-18 | [intraday-chart.md](./features/intraday-chart.md) |
 | First-launch Setup Wizard | 2026-04-24 | [setup-wizard.md](./features/setup-wizard.md) |
 | Admin page (instance settings) | 2026-05-29 | [admin-page.md](./features/admin-page.md) |

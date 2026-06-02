@@ -127,6 +127,14 @@ cp docker/.env.example docker/.env
 
 > **Note:** The bcrypt hash contains `$` characters. In `.env`, write it as-is without quotes. Never export it in a shell without single quotes: `export APP_PASSWORD_HASH='$2a$12$...'`.
 
+> **Behind an HTTPS reverse proxy (Caddy, Traefik, Nginx Proxy Manager, Cloudflare Tunnel, …):**
+> your proxy **must** forward `X-Forwarded-Proto: https` to Picsou (all of the above do by default).
+> Picsou listens on plain HTTP `:8080` and honors that header to know it is being served over HTTPS.
+> Without it, the backend treats your same-origin HTTPS requests as cross-origin and the login /
+> setup **Origins** step fail with **403**. You then do **not** need to set `ALLOWED_ORIGINS` for a
+> same-origin deployment — leave it blank and let the wizard handle it. Set `SECURE_COOKIES=true`
+> (the default) when served over HTTPS.
+
 ### 4. Enable Banking key setup (optional)
 
 ```bash
