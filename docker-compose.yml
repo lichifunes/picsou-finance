@@ -36,6 +36,9 @@ services:
       # Optionnels — laissés vides si non définis (le wizard les gère au 1er lancement)
       APP_USERNAME: ${APP_USERNAME:-}
       APP_PASSWORD_HASH: ${APP_PASSWORD_HASH:-}
+    volumes:
+      # Clé privée Enable Banking générée par le wizard — doit survivre aux redéploiements
+      - backend-data:/data
     depends_on:
       db:
         condition: service_healthy
@@ -64,6 +67,7 @@ services:
 
 volumes:
   pgdata:
+  backend-data:
 
 networks:
   picsou-net:
