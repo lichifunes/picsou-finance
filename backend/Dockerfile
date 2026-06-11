@@ -17,7 +17,10 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Non-root user for security
-RUN addgroup -S picsou && adduser -S picsou -G picsou
+# /data is pre-created and owned by the app user so a fresh named volume
+# inherits the right ownership (Enable Banking key storage).
+RUN addgroup -S picsou && adduser -S picsou -G picsou \
+ && mkdir -p /data && chown picsou:picsou /data
 USER picsou
 
 COPY --from=build /app/target/*.jar app.jar
