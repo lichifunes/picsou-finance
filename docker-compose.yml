@@ -28,6 +28,11 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       JWT_SECRET: ${JWT_SECRET}
       CRYPTO_ENCRYPTION_KEY: ${CRYPTO_ENCRYPTION_KEY}
+      # URL publique derrière le reverse proxy (redirect URI Enable Banking, etc.)
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      # Fallbacks CORS/cookies si la DB est vierge (la valeur en DB prime)
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      SECURE_COOKIES: ${SECURE_COOKIES:-true}
       # Optionnels — laissés vides si non définis (le wizard les gère au 1er lancement)
       APP_USERNAME: ${APP_USERNAME:-}
       APP_PASSWORD_HASH: ${APP_PASSWORD_HASH:-}
